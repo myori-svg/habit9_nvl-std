@@ -64,6 +64,11 @@ function StepDQ({ novel }: { novel: Novel }) {
   const [selectedChapters, setSelectedChapters] = useState<string[]>([]);
   const [customSummary, setCustomSummary] = useState('');
 
+  useEffect(() => {
+  setSelectedChapters([]);
+  setCustomSummary('');
+}, [novel.id]);
+
   // summary에서 챕터 파싱 (Chapter X-Y 또는 챕터 X 패턴)
   const parsedChapters = (() => {
     if (!novel.summary) return [];
@@ -519,6 +524,12 @@ function ManualResultPaste({ novel, selectedPartId, selectedDQId }: { novel: Nov
 
 export default function ManualPanel({ novel }: Props) {
   const [activeStep, setActiveStep] = useState<ActiveStep>('dq');
+  const [resetKey, setResetKey] = useState(novel.id);
+
+  useEffect(() => {
+    setResetKey(novel.id);
+    setActiveStep('dq');
+  }, [novel.id]);
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -557,11 +568,11 @@ export default function ManualPanel({ novel }: Props) {
 
       {/* Step content */}
       <div className="card" style={{ padding: 24 }}>
-        {activeStep === 'dq' && <StepDQ novel={novel} />}
-        {activeStep === 'composition' && <StepComposition novel={novel} />}
-        {activeStep === 'char-info' && <StepCharInfo novel={novel} />}
-        {activeStep === 'char-prompt' && <StepCharPrompt novel={novel} />}
-        {activeStep === 'scene' && <StepScene novel={novel} />}
+        {activeStep === 'dq' && <StepDQ key={resetKey} novel={novel} />}
+        {activeStep === 'composition' && <StepComposition key={resetKey} novel={novel} />}
+        {activeStep === 'char-info' && <StepCharInfo key={resetKey} novel={novel} />}
+        {activeStep === 'char-prompt' && <StepCharPrompt key={resetKey} novel={novel} />}
+        {activeStep === 'scene' && <StepScene key={resetKey} novel={novel} />}
       </div>
     </div>
   );
