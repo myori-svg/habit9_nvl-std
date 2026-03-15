@@ -86,45 +86,31 @@ function StepComposition({ novel }: { novel: Novel }) {
   const [selectedPartId, setSelectedPartId] = useState(novel.parts[0]?.id ?? '');
   const [selectedDQId, setSelectedDQId] = useState('');
   const [customDQ, setCustomDQ] = useState('');
-  
 
   const part = novel.parts.find((p) => p.id === selectedPartId);
   const dq = part?.discussionQuestions.find((d) => d.id === selectedDQId);
   const questionText = dq?.text || customDQ;
+
   const charList = novel.characters.map((c) => c.name).join(', ') || '(캐릭터 없음)';
+
   const questionItems = (() => {
-  if (novel.parts.length > 0 && part) {
-    return part.discussionQuestions
-      .map((dq, i) => `<항목 ${i + 1}>\n${dq.text}`)
-      .join('\n\n');
-  }
-  return customDQ ? `<항목 1>\n${customDQ}` : '(질문을 선택하거나 입력해주세요)';
-})();
+    if (novel.parts.length > 0 && part) {
+      return part.discussionQuestions
+        .map((dq, i) => `<항목 ${i + 1}>\n${dq.text}`)
+        .join('\n\n');
+    }
+    return customDQ ? `<항목 1>\n${customDQ}` : '(질문을 선택하거나 입력해주세요)';
+  })();
+
   const prompt = `각 <항목>별로 어울리는 배경화면을 생성할 수 있도록 화풍, 캐릭터 외형을 제외한 장면의 구도를 나타내는 이미지 생성 프롬프트를 생성해줘
-  항목은 <div> html 태그 표시로 구분
-  내용에 알맞게 캐릭터들의 구도도 설정하는데, 어떤 캐릭터가 어떤 구도를 잡고 있는지 명시할 것
-  캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것, 단 주어진 [character list]에 캐릭터명이 존재하는 경우에만 모아서 반환
+항목은 <div> html 태그 표시로 구분
+내용에 알맞게 캐릭터들의 구도도 설정하는데, 어떤 캐릭터가 어떤 구도를 잡고 있는지 명시할 것
+캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것, 단 주어진 [character list]에 캐릭터명이 존재하는 경우에만 모아서 반환
 
-  [character list]
-  ${charList}
+[character list]
+${charList}
 
-  ${questionItems}`;
-  ```
-
-  이러면 선택된 파트의 DQ들이 자동으로 `<항목 1>`, `<항목 2>`... 로 나뉘어서 조립돼요!
-  ```
-
-Discussion Question:
-"${questionText || '(질문을 선택하거나 직접 입력해주세요)'}"
-
-아래 내용을 포함한 장면 구도 프롬프트를 작성해주세요:
-- 배경 설정, 분위기, 시간대, 조명
-- 카메라 앵글과 구도 (medium shot, wide shot 등)
-- 캐릭터 위치, 동작, 표정 (캐릭터 이름은 {}로 감싸기)
-- 주요 소품 및 시각적 요소
-- 장면의 감정적 톤
-
-영어로 작성할 것. 프롬프트 텍스트만 출력.`;
+${questionItems}`;
 
   return (
     <div>
@@ -139,17 +125,6 @@ Discussion Question:
             >
               {novel.parts.map((p) => (
                 <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
-            </select>
-            <select
-              value={selectedDQId}
-              onChange={(e) => setSelectedDQId(e.target.value)}
-              className="input-field"
-              style={{ flex: 2, fontSize: 12 }}
-            >
-              <option value="">— DQ 선택 —</option>
-              {part?.discussionQuestions.map((dq, i) => (
-                <option key={dq.id} value={dq.id}>Q{i + 1}. {dq.text.slice(0, 50)}…</option>
               ))}
             </select>
           </div>
@@ -175,6 +150,7 @@ Discussion Question:
     </div>
   );
 }
+
 
 function StepCharInfo({ novel }: { novel: Novel }) {
   const [charName, setCharName] = useState(novel.characters[0]?.name ?? '');
