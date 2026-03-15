@@ -459,11 +459,10 @@ ${charPromptsText || '(캐릭터를 선택하세요)'}`;
                   })}
                 </div>
                 {charInfoPrompts.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {charInfoPrompts.map(({ name, prompt}) => (
-                      <PromptBox key={name} prompt={prompt} label={`캐릭터 "${name}" 정보 프롬프트`} />
-                    ))}            
-                  </div>
+                  <PromptBox
+                    label="Gemini에 붙여넣을 프롬프트"
+                    prompt={charInfoPrompts.map(({ name, prompt }) => `[${name}]\n${prompt}`).join('\n\n===\n\n')}
+                  />            
                 )}
               </div>
             )}
