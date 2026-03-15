@@ -69,7 +69,7 @@ function StepDQ({ novel }: { novel: Novel }) {
 - 선택형 또는 의견이 갈리는 형식으로 구성 (문제 + 선택지 2~3개)
 - 각 챕터당 2-3개 질문
 - 영어로 작성
-- 각 질문(문제+선택지 포함)은 --- 구분선으로 나눌 것
+- 각 문제, 선택지는 --- 구분선으로 나눌 것
 - 마크다운 외 다른 태그 없이 plain text로 반환
 
 소설 서머리:
@@ -89,13 +89,24 @@ function StepComposition({ novel }: { novel: Novel }) {
   const charList = novel.characters.map((c) => c.name).join(', ') || '(캐릭터 없음)';
 
   const questionItems = (() => {
-    if (novel.parts.length > 0 && part) {
-      return part.discussionQuestions
-        .map((dq, i) => `<항목 ${i + 1}>\n${dq.text}`)
-        .join('\n\n');
-    }
-    return customDQ ? `<항목 1>\n${customDQ}` : '(질문을 선택하거나 입력해주세요)';
-  })();
+  if (novel.parts.length > 0 && part) {
+    return part.discussionQuestions
+      .map((dq) => {
+        // --- 기준으로 쪼개서 각각 <div> 감싸기
+        const items = dq.text.split(/\n---\n/).map((s) => s.trim()).filter(Boolean);
+        if (items.length > 1) {
+          return items.map((item) => `<div>\n${item}\n</div>`).join(' .');
+        }
+        return `<div>\n${dq.text}\n</div>`;
+      })
+      .join(' .');
+  }
+  if (customDQ) {
+    const items = customDQ.split(/\n---\n/).map((s) => s.trim()).filter(Boolean);
+    return items.map((item) => `<div>\n${item}\n</div>`).join(' .');
+  }
+  return '(질문을 선택하거나 입력해주세요)';
+})();
 
   const prompt = `각 <항목>별로 어울리는 배경화면을 생성할 수 있도록 화풍, 캐릭터 외형을 제외한 장면의 구도를 나타내는 이미지 생성 프롬프트를 생성해줘
 항목은 <div> html 태그 표시로 구분
