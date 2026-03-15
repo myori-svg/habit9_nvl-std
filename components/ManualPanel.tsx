@@ -60,8 +60,41 @@ function PromptBox({ prompt, label }: { prompt: string; label?: string }) {
 }
 
 // ── Step components ──────────────────────────────────────────────
-
 function StepDQ({ novel }: { novel: Novel }) {
+  const [selectedChapters, setSelectedChapters] = useState<string[]>([]);
+  const [customSummary, setCustomSummary] = useState('');
+
+  // summary에서 챕터 파싱 (Chapter X-Y 또는 챕터 X 패턴)
+  const parsedChapters = (() => {
+    if (!novel.summary) return [];
+    const lines = novel.summary.split('\n');
+    const chapters: { label: string; content: string }[] = [];
+    let current: { label: string; lines: string[] } | null = null;
+
+    for (const line of lines) {
+      if (/^(chapter|챕터|ch\.?)\s*[\d\-]+/i.test(line.trim())) {
+        if (current) chapters.push({ label: current.label, content: current.lines.join('\n').trim() });
+        current = { label: line.trim(), lines: [] };
+      } else if (current) {
+        current.lines.push(line);
+      }
+    }
+    if (current) chapters.push({ label: current.label, content: current.lines.join('\n').trim() });
+    return chapters;
+  })();
+
+  const toggleChapter = (label: string) =>
+    setSelectedChapters((prev) =>
+      prev.includes(label) ? prev.filter((c) => c !== label) : [...prev, label]
+    );
+
+  const selectedSummary = parsedChapters.length > 0
+    ? parsedChapters
+        .filter((c) => selectedChapters.includes(c.label))
+        .map((c) => `${c.label}\n${c.content}`)
+        .join('\n\n')
+    : customSummary;
+
   const prompt = `소설 "${novel.title}"의 챕터별 서머리를 보고 각 챕터에 맞는 Discussion Question을 생성해주세요.
 
 아래 지침을 따라주세요:
@@ -69,12 +102,64 @@ function StepDQ({ novel }: { novel: Novel }) {
 - 선택형 또는 의견이 갈리는 형식으로 구성 (문제 + 선택지 2~3개)
 - 각 챕터당 2-3개 질문
 - 영어로 작성
-- 각 문제, 선택지는 --- 구분선으로 나눌 것
+- 각 질문(문제+선택지 포함)은 --- 구분선으로 나눌 것
 - 마크다운 외 다른 태그 없이 plain text로 반환
 
 소설 서머리:
-${novel.summary || '(summary를 입력해주세요)'}`;
-  return <PromptBox prompt={prompt} label="Gemini에 붙여넣을 프롬프트" />;
+${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
+
+  return (
+    <div>
+      {parsedChapters.length > 0 ? (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+            챕터 선택 (복수 선택 가능)
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {parsedChapters.map((c) => {
+              const sel = selectedChapters.includes(c.label);
+              return (
+                <div
+                  key={c.label}
+                  onClick={() => toggleChapter(c.label)}
+                  style={{
+                    padding: '5px 12px', border: '1px solid', cursor: 'pointer', fontSize: 12,
+                    borderColor: sel ? 'var(--gold)' : 'var(--border)',
+                    background: sel ? 'rgba(201,168,76,0.1)' : 'white',
+                    display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+                  }}
+                >
+                  {sel && <Check size={10} style={{ color: 'var(--gold)' }} />}
+                  {c.label}
+                </div>
+              );
+            })}
+          </div>
+          {selectedChapters.length > 0 && (
+            <div style={{ padding: '10px 12px', background: 'var(--parchment)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--ink-soft)', maxHeight: 120, overflow: 'auto' }}>
+              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'DM Sans, sans-serif', fontSize: 12 }}>
+                {selectedSummary}
+              </pre>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 6 }}>
+            챕터가 자동 감지되지 않았어요. 직접 입력하세요:
+          </div>
+          <textarea
+            className="input-field"
+            value={customSummary}
+            onChange={(e) => setCustomSummary(e.target.value)}
+            placeholder="사용할 챕터 서머리를 붙여넣기"
+            style={{ fontSize: 12, minHeight: 100 }}
+          />
+        </div>
+      )}
+      <PromptBox prompt={prompt} label="Gemini에 붙여넣을 프롬프트" />
+    </div>
+  );
 }
 
 function StepComposition({ novel }: { novel: Novel }) {
