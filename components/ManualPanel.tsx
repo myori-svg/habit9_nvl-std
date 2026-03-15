@@ -66,19 +66,14 @@ function StepDQ({ novel }: { novel: Novel }) {
 
 아래 지침을 따라주세요:
 - 초등학교 4학년 영어 학습자 수준에 맞게 작성
-- 선택형 또는 의견이 갈리는 형식으로 구성해서 토의가 활발해지게
+- 선택형 또는 의견이 갈리는 형식으로 구성 (문제 + 선택지 2~3개)
 - 각 챕터당 2-3개 질문
 - 영어로 작성
+- 각 질문(문제+선택지 포함)은 --- 구분선으로 나눌 것
+- 마크다운 외 다른 태그 없이 plain text로 반환
 
 소설 서머리:
-${novel.summary || '(summary를 입력해주세요)'}
-
-출력 형식:
-Chapter X-Y
-Q1. ...
-Q2. ...
-Q3. ...`;
-
+${novel.summary || '(summary를 입력해주세요)'}`;
   return <PromptBox prompt={prompt} label="Gemini에 붙여넣을 프롬프트" />;
 }
 
