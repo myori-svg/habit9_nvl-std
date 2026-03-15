@@ -159,10 +159,19 @@ export default function ManualPanel({ novel }: Props) {
 아래 지침을 따라주세요:
 - 초등학교 4학년 영어 학습자 수준에 맞게 작성
 - 선택형 또는 의견이 갈리는 형식으로 구성 (문제 + 선택지 2~3개)
+- 주어진 <예시>를 참고해서 질문을 최대한 흥미롭고 창의적으로 만들어주세요
 - 각 챕터당 2-3개 질문
 - 영어로 작성
-- 각 질문(문제+선택지 포함)은 --- 구분선으로 나눌 것
+- 각 문제(제목+본문)와 선택지들은 --- 구분선으로 나눌 것
+- 서로 다른 문제 간에는 === 구분선으로 나눌 것
 - 마크다운 외 다른 태그 없이 plain text로 반환
+
+<예시>
+1. [The Freedom Trade-off] Safety in a Cage vs. Danger in the Wild?
+Inside the NIMH lab, the rats have everything: free food, scientists who take care of them, and no predators. But they are trapped in cages. Outside, they can go wherever they want, but they might starve or be hunted
+If you were Nicodemus, which life would you choose? Pick one and give 3 reasons:
+Option A: The Golden Cage (Safe): "I'll stay in the lab. I get injections that make me smart, I have plenty of food, and I never have to worry about cats or cold weather."
+Option B: The Scary Wild (Free): "I’m leaving! I’d rather be hungry and scared but free to make my own choices than be a prisoner in a clean cage."
 
 소설 서머리:
 ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
