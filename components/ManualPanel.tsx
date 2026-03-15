@@ -103,7 +103,7 @@ export default function ManualPanel({ novel }: Props) {
   const [compCustomDQ, setCompCustomDQ] = useState('');
 
   // ── Step 3: Char Info ───────────────────────────────────────────
-  const [charInfoName, setCharInfoName] = useState(novel.characters[0]?.name ?? '');
+  const [charInfoNames, setCharInfoNames] = useState<string[]>([]);
 
   // ── Step 4: Char Prompt ─────────────────────────────────────────
   const [charPromptName, setCharPromptName] = useState(novel.characters[0]?.name ?? '');
@@ -125,7 +125,7 @@ export default function ManualPanel({ novel }: Props) {
     setDqCustomSummary('');
     setCompPartId(novel.parts[0]?.id ?? '');
     setCompCustomDQ('');
-    setCharInfoName(novel.characters[0]?.name ?? '');
+    setCharInfoNames([]);
     setCharPromptName(novel.characters[0]?.name ?? '');
     setCharPromptInfo(novel.characters[0]?.info ?? '');
     setScenePartId(novel.parts[0]?.id ?? '');
@@ -204,14 +204,17 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
 
 ${questionItems}`;
 
-  const charInfoPrompt = `소설 "${novel.title}"에 등장하는 캐릭터 "${charInfoName || '(캐릭터 이름)'}"의 정보를 정리해주세요.
+  const charInfoPrompts = charInfoNames.map((name) => ({
+    name,
+    prompt:`소설 "${novel.title}"에 등장하는 캐릭터 "${name || '(캐릭터 이름)'}"의 정보를 정리해주세요.
 
 아래 내용을 포함해주세요:
 - 나이 및 신체적 외형 (머리카락, 눈, 체형, 주로 입는 옷)
 - 성격 특징
 - 이야기에서의 역할
 
-외형 묘사는 구체적으로. 150단어 이내.`;
+외형 묘사는 구체적으로. 150단어 이내.`
+}));
 
   const styleRef = novel.stylePrompt || 'cozy heartwarming watercolor and colored pencil storybook illustration, soft hand-drawn outlines, warm golden light, muted pastels and earthy browns, framed by a decorative vine border';
 
@@ -417,16 +420,44 @@ ${charPromptsText || '(캐릭터를 선택하세요)'}`;
             {/* ③-1: 캐릭터 정보 */}
             {charSubStep === 'info' && (
               <div>
-                <div style={{ marginBottom: 12 }}>
-                  {novel.characters.length > 0 ? (
-                    <select value={charInfoName} onChange={(e) => setCharInfoName(e.target.value)} className="input-field" style={{ fontSize: 12 }}>
-                      {novel.characters.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
-                  ) : (
-                    <input className="input-field" value={charInfoName} onChange={(e) => setCharInfoName(e.target.value)} placeholder="캐릭터 이름 입력" style={{ fontSize: 12 }} />
-                  )}
+                <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                  캐릭터 선택 (정보 미생성 캐릭터만 선택 가능)
                 </div>
-                <PromptBox prompt={charInfoPrompt} label="Gemini에 붙여넣을 프롬프트" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                  {novel.characters.length === 0 && (
+                    <p style={{ fontSize: 12, color: 'var(--ink-soft)', opacity: 0.5 }}>③-0에서 먼저 캐릭터를 추출해주세요</p>
+                  )}
+                  {novel.characters.map((c) => {
+                    const hasInfo = !!c.info;
+                    const selected = charInfoNames.includes(c.name);
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => {
+                          if (hasInfo) return;
+                          setCharInfoNames((prev) =>
+                            selected ? prev.filter((n) => n !== c.name) : [...prev, c.name]
+                          );
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '8px 12px', border: '1px solid',
+                          borderColor: selected ? 'var(--gold)' : 'var(--border)',
+                          background: hasInfo ? 'var(--parchment)' : selected ? 'rgba(201,168,76,0.08)' : 'white',
+                          cursor: hasInfo ? 'not-allowed' : 'pointer',
+                          opacity: hasInfo ? 0.5 : 1,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <div style={{ width: 16, height: 16, border: '1px solid', borderColor: selected ? 'var(--gold)' : 'var(--border)', background: selected ? 'var(--gold)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {selected && <Check size={10} style={{ color: 'var(--ink)' }} />}
+                        </div>
+                        <span style={{ fontSize: 13, flex: 1 }}>{c.name}</span>
+                        {hasInfo && <span style={{ fontSize: 10, color: 'var(--sage)' }}>정보 있음</span>}
+                      </div>
+                    );
+                  })}
+                </div>            
               </div>
             )}
           </div>
