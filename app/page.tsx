@@ -17,7 +17,7 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
 
   const novel = novels.find((n) => n.id === activeNovelId);
-  const isSetup = novel && novel.parts.length === 0;
+  const isSetup = false;
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'manual', label: 'Manual Mode' },
