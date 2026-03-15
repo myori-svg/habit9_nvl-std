@@ -179,24 +179,20 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
   const compPart = novel.parts.find((p) => p.id === compPartId);
   const charList = novel.characters.map((c) => c.name).join(', ') || '(캐릭터 없음)';
   const questionItems = (() => {
-    if (novel.parts.length > 0 && compPart) {
-      return compPart.discussionQuestions.map((dq) => {
-        const items = dq.text.split(/\n---\n/).map((s) => s.trim()).filter(Boolean);
-        return items.length > 1
-          ? items.map((item) => `<div>\n${item}\n</div>`).join(' .')
-          : `<div>\n${dq.text}\n</div>`;
-      }).join(' .');
-    }
-    if (compCustomDQ) {
-      const items = compCustomDQ.split(/\n---\n/).map((s) => s.trim()).filter(Boolean);
-      return items.map((item) => `<div>\n${item}\n</div>`).join(' .');
-    }
-    return '(질문을 선택하거나 입력해주세요)';
-  })();
+  if (novel.parts.length > 0 && compPart) {
+    return compPart.discussionQuestions.map((dq) => {
+      return dq.text.split(/\n===\n/).map((q) =>
+        q.split(/\n---\n/).join('\n---\n')
+      ).join('\n===\n');
+    }).join('\n===\n');
+  }
+  if (compCustomDQ) return compCustomDQ;
+  return '(질문을 선택하거나 입력해주세요)';
+})();
 
   const compositionPrompt = `각 <항목>별로 어울리는 배경화면을 생성할 수 있도록 화풍, 캐릭터 외형을 제외한 장면의 구도를 나타내는 이미지 생성 프롬프트를 생성해줘
-각 문제는 <div> 태그로 감싸고, 문제 본문과 각 선택지는 <span> 태그로 구분할 것
-답변 반환시에는 구분선으로 구분하고, 태그는 제거, 각 항목의 시작에는 제목을 붙일 것
+각 문제는 === 구분선으로 나누고, 문제 본문과 각 선택지는 --- 구분선으로 구분할 것
+답변 반환시에는 동일한 구분선 구조를 유지하고, 각 항목의 시작에는 제목을 붙일 것
 내용에 알맞게 캐릭터들의 구도도 설정하는데, 어떤 캐릭터가 어떤 구도를 잡고 있는지 명시할 것
 캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것, 단 주어진 [character list]에 캐릭터명이 존재하는 경우에만 모아서 반환
 
