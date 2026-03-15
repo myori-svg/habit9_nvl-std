@@ -26,9 +26,21 @@ export function subscribeNovels(cb: (novels: Novel[]) => void): Unsubscribe {
   );
 }
 
+// Remove undefined fields recursively (Firestore doesn't accept undefined)
+function stripUndefined(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(stripUndefined);
+  if (obj && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, stripUndefined(v)])
+    );
+  }
+  return obj;
+}
+
 export async function saveNovel(novel: Novel): Promise<void> {
-  // Strip base64 images before saving to Firestore (too large)
-  const toSave: Novel = {
+  const toSave = stripUndefined({
     ...novel,
     styleImageBase64: undefined,
     styleImageMime: undefined,
@@ -45,9 +57,10 @@ export async function saveNovel(novel: Novel): Promise<void> {
         sceneMime: undefined,
       })),
     })),
-  };
+  });
   await setDoc(doc(db, NOVELS, novel.id), toSave);
 }
+
 
 export async function updateNovelField(novelId: string, data: Partial<Novel>): Promise<void> {
   await updateDoc(doc(db, NOVELS, novelId), data as Record<string, unknown>);
