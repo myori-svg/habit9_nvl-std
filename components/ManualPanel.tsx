@@ -115,6 +115,9 @@ export default function ManualPanel({ novel }: Props) {
   const [sceneComposition, setSceneComposition] = useState('');
   const [sceneCharIds, setSceneCharIds] = useState<string[]>([]);
 
+  const [charSubStep, setCharSubStep] = useState<'extract' | 'info'>('extract');
+  const [charExtractInput, setCharExtractInput] = useState('');
+  const [extractedChars, setExtractedChars] = useState<string[]>([]);
   // Reset all when novel changes
   useEffect(() => {
     setActiveStep('dq');
@@ -129,6 +132,9 @@ export default function ManualPanel({ novel }: Props) {
     setSceneDQId('');
     setSceneComposition('');
     setSceneCharIds([]);
+    setCharSubStep('extract');
+    setCharExtractInput('');
+    setExtractedChars([]);
   }, [novel.id]);
 
   // ── Computed prompts ────────────────────────────────────────────
@@ -322,16 +328,107 @@ ${charPromptsText || '(캐릭터를 선택하세요)'}`;
         {/* ── Step 3: Char Info ── */}
         {activeStep === 'char-info' && (
           <div>
-            <div style={{ marginBottom: 12 }}>
-              {novel.characters.length > 0 ? (
-                <select value={charInfoName} onChange={(e) => setCharInfoName(e.target.value)} className="input-field" style={{ fontSize: 12 }}>
-                  {novel.characters.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
-              ) : (
-                <input className="input-field" value={charInfoName} onChange={(e) => setCharInfoName(e.target.value)} placeholder="캐릭터 이름 입력" style={{ fontSize: 12 }} />
-              )}
+            {/* Sub-step tabs */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              {(['extract', 'info'] as const).map((t) => (
+                <button key={t} onClick={() => setCharSubStep(t)} style={{
+                  padding: '6px 14px', cursor: 'pointer', fontSize: 12,
+                  background: charSubStep === t ? 'var(--gold)' : 'white',
+                  color: charSubStep === t ? 'var(--ink)' : 'var(--ink-soft)',
+                  border: '1px solid', borderColor: charSubStep === t ? 'var(--gold)' : 'var(--border)',
+                  transition: 'all 0.15s',
+                }}>
+                  {t === 'extract' ? '③-0 캐릭터 목록 추출' : '③-1 캐릭터 정보'}
+                </button>
+              ))}
             </div>
-            <PromptBox prompt={charInfoPrompt} label="Gemini에 붙여넣을 프롬프트" />
+
+            {/* ③-0: 캐릭터 추출 */}
+            {charSubStep === 'extract' && (
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 6, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                  구도 프롬프트 붙여넣기
+                </div>
+                <textarea
+                  className="input-field"
+                  value={charExtractInput}
+                  onChange={(e) => {
+                    setCharExtractInput(e.target.value);
+                    // 자동 추출
+                    const matches = e.target.value.match(/\{([^}]+)\}/g)?.map((m) => m.slice(1, -1)) ?? [];
+                    const unique = [...new Set(matches)];
+                    setExtractedChars(unique);
+                  }}
+                  placeholder="② 단계에서 생성한 구도 프롬프트를 붙여넣으세요"
+                  style={{ fontSize: 12, minHeight: 120, marginBottom: 12 }}
+                />
+
+                {extractedChars.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                      추출된 캐릭터
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {extractedChars.map((name) => {
+                        const exists = novel.characters.some((c) => c.name === name);
+                        return (
+                          <div key={name} style={{
+                            padding: '5px 12px', fontSize: 12, border: '1px solid',
+                            borderColor: exists ? 'var(--sage)' : 'var(--gold)',
+                            background: exists ? 'rgba(74,103,65,0.08)' : 'rgba(201,168,76,0.1)',
+                            display: 'flex', alignItems: 'center', gap: 6,
+                          }}>
+                            {exists ? <Check size={10} style={{ color: 'var(--sage)' }} /> : null}
+                            {name}
+                            <span style={{ fontSize: 10, opacity: 0.6 }}>{exists ? '이미 있음' : '새 캐릭터'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {extractedChars.some((name) => !novel.characters.some((c) => c.name === name)) && (
+                  <button
+                    className="btn-primary"
+                    onClick={() => {
+                      const { addNovel, updateNovel } = useStore.getState();
+                      const newChars = extractedChars
+                        .filter((name) => !novel.characters.some((c) => c.name === name))
+                        .map((name) => ({
+                          id: crypto.randomUUID(),
+                          name,
+                          info: '',
+                          textPrompt: '',
+                          createdAt: new Date().toISOString(),
+                        }));
+                      updateNovel(novel.id, {
+                        characters: [...novel.characters, ...newChars],
+                      });
+                    }}
+                    style={{ fontSize: 12, padding: '7px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Check size={12} /> 새 캐릭터 저장
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* ③-1: 캐릭터 정보 */}
+            {charSubStep === 'info' && (
+              <div>
+                <div style={{ marginBottom: 12 }}>
+                  {novel.characters.length > 0 ? (
+                    <select value={charInfoName} onChange={(e) => setCharInfoName(e.target.value)} className="input-field" style={{ fontSize: 12 }}>
+                      {novel.characters.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  ) : (
+                    <input className="input-field" value={charInfoName} onChange={(e) => setCharInfoName(e.target.value)} placeholder="캐릭터 이름 입력" style={{ fontSize: 12 }} />
+                  )}
+                </div>
+                <PromptBox prompt={charInfoPrompt} label="Gemini에 붙여넣을 프롬프트" />
+              </div>
+            )}
           </div>
         )}
 
