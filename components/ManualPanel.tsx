@@ -1,8 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { Novel, NovelPart, DiscussionQuestion } from '@/types';
-import { Copy, Check, ChevronDown, ChevronRight, Paste } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface Props { novel: Novel; }
 
@@ -86,12 +86,33 @@ function StepComposition({ novel }: { novel: Novel }) {
   const [selectedPartId, setSelectedPartId] = useState(novel.parts[0]?.id ?? '');
   const [selectedDQId, setSelectedDQId] = useState('');
   const [customDQ, setCustomDQ] = useState('');
+  
 
   const part = novel.parts.find((p) => p.id === selectedPartId);
   const dq = part?.discussionQuestions.find((d) => d.id === selectedDQId);
   const questionText = dq?.text || customDQ;
+  const charList = novel.characters.map((c) => c.name).join(', ') || '(캐릭터 없음)';
+  const questionItems = (() => {
+  if (novel.parts.length > 0 && part) {
+    return part.discussionQuestions
+      .map((dq, i) => `<항목 ${i + 1}>\n${dq.text}`)
+      .join('\n\n');
+  }
+  return customDQ ? `<항목 1>\n${customDQ}` : '(질문을 선택하거나 입력해주세요)';
+})();
+  const prompt = `각 <항목>별로 어울리는 배경화면을 생성할 수 있도록 화풍, 캐릭터 외형을 제외한 장면의 구도를 나타내는 이미지 생성 프롬프트를 생성해줘
+  항목은 <div> html 태그 표시로 구분
+  내용에 알맞게 캐릭터들의 구도도 설정하는데, 어떤 캐릭터가 어떤 구도를 잡고 있는지 명시할 것
+  캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것, 단 주어진 [character list]에 캐릭터명이 존재하는 경우에만 모아서 반환
 
-  const prompt = `소설 "${novel.title}"의 Discussion Question에 어울리는 장면 구도 프롬프트를 생성해주세요.
+  [character list]
+  ${charList}
+
+  ${questionItems}`;
+  ```
+
+  이러면 선택된 파트의 DQ들이 자동으로 `<항목 1>`, `<항목 2>`... 로 나뉘어서 조립돼요!
+  ```
 
 Discussion Question:
 "${questionText || '(질문을 선택하거나 직접 입력해주세요)'}"
@@ -260,6 +281,17 @@ function StepScene({ novel }: { novel: Novel }) {
 
   const part = novel.parts.find((p) => p.id === selectedPartId);
   const dq = part?.discussionQuestions.find((d) => d.id === selectedDQId);
+
+    // 구도 프롬프트에서 {캐릭터명} 자동 감지
+  useEffect(() => {
+    if (!composition) return;
+    const matches = composition.match(/\{([^}]+)\}/g)?.map((m) => m.slice(1, -1)) ?? [];
+    const autoIds = novel.characters
+      .filter((c) => matches.some((m) => m.toLowerCase() === c.name.toLowerCase()))
+      .map((c) => c.id);
+    if (autoIds.length > 0) setSelectedCharIds(autoIds);
+  }, [composition]);
+  
 
   // Auto-fill composition when DQ selected
   const handleDQSelect = (dqId: string) => {
