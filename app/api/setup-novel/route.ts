@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: 'API key required' }, { status: 400 });
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const textModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
+  const textModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
