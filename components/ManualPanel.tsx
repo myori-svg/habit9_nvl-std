@@ -524,10 +524,10 @@ function ManualResultPaste({ novel, selectedPartId, selectedDQId }: { novel: Nov
 
 export default function ManualPanel({ novel }: Props) {
   const [activeStep, setActiveStep] = useState<ActiveStep>('dq');
-  const [resetKey, setResetKey] = useState(novel.id);
+  const [activeNovelKey, setActiveNovelKey] = useState(novel.id);
 
   useEffect(() => {
-    setResetKey(novel.id);
+    setActiveNovelKey(novel.id);
     setActiveStep('dq');
   }, [novel.id]);
 
@@ -568,11 +568,11 @@ export default function ManualPanel({ novel }: Props) {
 
       {/* Step content */}
       <div className="card" style={{ padding: 24 }}>
-        {activeStep === 'dq' && <StepDQ key={resetKey} novel={novel} />}
-        {activeStep === 'composition' && <StepComposition key={resetKey} novel={novel} />}
-        {activeStep === 'char-info' && <StepCharInfo key={resetKey} novel={novel} />}
-        {activeStep === 'char-prompt' && <StepCharPrompt key={resetKey} novel={novel} />}
-        {activeStep === 'scene' && <StepScene key={resetKey} novel={novel} />}
+        {activeStep === 'dq' && <StepDQ key={activeNovelKey} novel={novel} />}
+        {activeStep === 'composition' && <StepComposition key={activeNovelKey} novel={novel} />}
+        {activeStep === 'char-info' && <StepCharInfo key={activeNovelKey} novel={novel} />}
+        {activeStep === 'char-prompt' && <StepCharPrompt key={activeNovelKey} novel={novel} />}
+        {activeStep === 'scene' && <StepScene key={activeNovelKey} novel={novel} />}
       </div>
     </div>
   );
