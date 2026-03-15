@@ -1,11 +1,10 @@
-// ─── Core Entities ───────────────────────────────────────────────
-
 export interface Novel {
   id: string;
   title: string;
   summary: string;
   styleImageBase64?: string;
   styleImageMime?: string;
+  styleImageUrl?: string;      // Firebase Storage URL
   stylePrompt: string;
   characters: Character[];
   parts: NovelPart[];
@@ -17,8 +16,9 @@ export interface Character {
   name: string;
   info: string;
   textPrompt: string;
-  imageBase64?: string;
+  imageBase64?: string;        // in-memory only
   imageMime?: string;
+  imageUrl?: string;           // Firebase Storage URL (persistent)
   createdAt: string;
 }
 
@@ -32,8 +32,9 @@ export interface DiscussionQuestion {
   id: string;
   text: string;
   compositionPrompt: string;
-  sceneImage?: string;
+  sceneImage?: string;         // in-memory only
   sceneMime?: string;
+  sceneImageUrl?: string;      // Firebase Storage URL (persistent)
 }
 
 export type SetupStep =
@@ -59,7 +60,8 @@ export interface HistoryEntry {
   novelTitle: string;
   type: 'scene' | 'character-image';
   label: string;
-  imageBase64?: string;
+  imageUrl?: string;           // Firebase Storage URL
+  imageBase64?: string;        // in-memory fallback
   imageMime?: string;
   prompt: string;
   createdAt: string;
