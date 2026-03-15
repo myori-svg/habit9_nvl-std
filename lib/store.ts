@@ -2,38 +2,31 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Novel, Character, DiscussionQuestion, HistoryEntry } from '@/types';
 import {
-  saveNovel, updateNovelField, deleteNovel as fbDeleteNovel,
+  saveNovel, deleteNovel as fbDeleteNovel,
   subscribeNovels, saveCharacterImage, saveSceneImage,
 } from './firestore';
 
 interface AppStore {
-  // Settings
   apiKey: string;
   setApiKey: (key: string) => void;
 
-  // Novels
   novels: Novel[];
   activeNovelId: string | null;
   setActiveNovel: (id: string) => void;
-  setNovels: (novels: Novel[]) => void;
   addNovel: (novel: Novel) => Promise<void>;
   updateNovel: (id: string, data: Partial<Novel>) => Promise<void>;
   deleteNovel: (id: string) => Promise<void>;
 
-  // Characters
   updateCharacter: (novelId: string, charId: string, data: Partial<Character>) => Promise<void>;
   saveCharImage: (novelId: string, charId: string, base64: string, mime: string) => Promise<string>;
 
-  // Parts / DQ
   updateDQ: (novelId: string, partId: string, dqId: string, data: Partial<DiscussionQuestion>) => Promise<void>;
   saveScene: (novelId: string, partId: string, dqId: string, base64: string, mime: string) => Promise<string>;
 
-  // History (local only — images stored in Firebase)
   history: HistoryEntry[];
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void;
   clearHistory: () => void;
 
-  // Firebase subscription
   unsubscribe: (() => void) | null;
   startSync: () => void;
   stopSync: () => void;
@@ -49,48 +42,40 @@ export const useStore = create<AppStore>()(
       activeNovelId: null,
       unsubscribe: null,
 
-      setNovels: (novels) => set({ novels }),
       setActiveNovel: (id) => set({ activeNovelId: id }),
 
+      // 쓰기만 하고 로컬 state는 subscribe가 알아서 반영
       addNovel: async (novel) => {
+        set({ activeNovelId: novel.id });
         await saveNovel(novel);
-        set((s) => ({ novels: [novel, ...s.novels], activeNovelId: novel.id }));
       },
 
       updateNovel: async (id, data) => {
-        set((s) => ({
-          novels: s.novels.map((n) => (n.id === id ? { ...n, ...data } : n)),
-        }));
-        const updated = get().novels.find((n) => n.id === id);
-        if (updated) await saveNovel({ ...updated, ...data });
+        const novel = get().novels.find((n) => n.id === id);
+        if (novel) await saveNovel({ ...novel, ...data });
       },
 
       deleteNovel: async (id) => {
+        const fallbackId = get().novels.find((n) => n.id !== id)?.id ?? null;
+        set({ activeNovelId: fallbackId });
         await fbDeleteNovel(id);
-        set((s) => ({
-          novels: s.novels.filter((n) => n.id !== id),
-          activeNovelId: s.activeNovelId === id ? (s.novels.find(n => n.id !== id)?.id ?? null) : s.activeNovelId,
-        }));
       },
 
       updateCharacter: async (novelId, charId, data) => {
-        set((s) => ({
-          novels: s.novels.map((n) =>
-            n.id !== novelId ? n : {
-              ...n,
-              characters: n.characters.map((c) => (c.id === charId ? { ...c, ...data } : c)),
-            }
-          ),
-        }));
         const novel = get().novels.find((n) => n.id === novelId);
-        if (novel) await saveNovel(novel);
+        if (!novel) return;
+        const updated = {
+          ...novel,
+          characters: novel.characters.map((c) => (c.id === charId ? { ...c, ...data } : c)),
+        };
+        await saveNovel(updated);
       },
 
       saveCharImage: async (novelId, charId, base64, mime) => {
         const novel = get().novels.find((n) => n.id === novelId);
         if (!novel) return '';
         const url = await saveCharacterImage(novel, charId, base64, mime);
-        // Update local state with URL
+        // imageBase64는 in-memory에만 저장 (Firebase엔 URL만)
         set((s) => ({
           novels: s.novels.map((n) =>
             n.id !== novelId ? n : {
@@ -105,29 +90,27 @@ export const useStore = create<AppStore>()(
       },
 
       updateDQ: async (novelId, partId, dqId, data) => {
-        set((s) => ({
-          novels: s.novels.map((n) =>
-            n.id !== novelId ? n : {
-              ...n,
-              parts: n.parts.map((p) =>
-                p.id !== partId ? p : {
-                  ...p,
-                  discussionQuestions: p.discussionQuestions.map((dq) =>
-                    dq.id === dqId ? { ...dq, ...data } : dq
-                  ),
-                }
+        const novel = get().novels.find((n) => n.id === novelId);
+        if (!novel) return;
+        const updated = {
+          ...novel,
+          parts: novel.parts.map((p) =>
+            p.id !== partId ? p : {
+              ...p,
+              discussionQuestions: p.discussionQuestions.map((dq) =>
+                dq.id === dqId ? { ...dq, ...data } : dq
               ),
             }
           ),
-        }));
-        const novel = get().novels.find((n) => n.id === novelId);
-        if (novel) await saveNovel(novel);
+        };
+        await saveNovel(updated);
       },
 
       saveScene: async (novelId, partId, dqId, base64, mime) => {
         const novel = get().novels.find((n) => n.id === novelId);
         if (!novel) return '';
         const url = await saveSceneImage(novel, partId, dqId, base64, mime);
+        // sceneImage는 in-memory에만 저장
         set((s) => ({
           novels: s.novels.map((n) =>
             n.id !== novelId ? n : {
@@ -159,9 +142,7 @@ export const useStore = create<AppStore>()(
       startSync: () => {
         const { unsubscribe: existing } = get();
         if (existing) existing();
-        const unsub = subscribeNovels((novels) => {
-          set({ novels });
-        });
+        const unsub = subscribeNovels((novels) => set({ novels }));
         set({ unsubscribe: unsub });
       },
 
@@ -176,7 +157,6 @@ export const useStore = create<AppStore>()(
         apiKey: state.apiKey,
         activeNovelId: state.activeNovelId,
         history: state.history.map((h) => ({ ...h, imageBase64: undefined })),
-        // novels come from Firebase, not localStorage
       }),
     }
   )
