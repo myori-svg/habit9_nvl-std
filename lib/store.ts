@@ -157,6 +157,16 @@ export const useStore = create<AppStore>()(
         apiKey: state.apiKey,
         activeNovelId: state.activeNovelId,
         history: state.history.map((h) => ({ ...h, imageBase64: undefined })),
+        novels: state.novels.map((n) => ({
+          ...n,
+          styleImageBase64: undefined,
+          styleImageMime: undefined,
+          characters: n.characters.map((c) => ({ ...c, imageBase64: undefined, imageMime: undefined })),
+          parts: n.parts.map((p) => ({
+            ...p,
+            discussionQuestions: p.discussionQuestions.map((dq) => ({ ...dq, sceneImage: undefined, sceneMime: undefined })),
+          })),
+        })),
       }),
     }
   )
