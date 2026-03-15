@@ -4,42 +4,48 @@ import { useStore } from '@/lib/store';
 import Sidebar from '@/components/Sidebar';
 import SetupPanel from '@/components/SetupPanel';
 import WorkPanel from '@/components/WorkPanel';
+import ManualPanel from '@/components/ManualPanel';
 import HistoryPanel from '@/components/HistoryPanel';
 import SettingsModal from '@/components/SettingsModal';
 import { Settings } from 'lucide-react';
 
-type Tab = 'work' | 'history';
+type Tab = 'work' | 'manual' | 'history';
 
 export default function Home() {
   const { activeNovelId, novels } = useStore();
-  const [tab, setTab] = useState<Tab>('work');
+  const [tab, setTab] = useState<Tab>('manual');
   const [showSettings, setShowSettings] = useState(false);
 
   const novel = novels.find((n) => n.id === activeNovelId);
   const isSetup = novel && novel.parts.length === 0;
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'manual', label: 'Manual Mode' },
+    { id: 'work', label: 'Auto Mode' },
+    { id: 'history', label: 'Archive' },
+  ];
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Top bar */}
         <header style={{
           height: 52, borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '0 24px', background: 'white', flexShrink: 0,
         }}>
           <div style={{ display: 'flex' }}>
-            {!isSetup && (['work', 'history'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)} style={{
+            {novel && !isSetup && TABS.map((t) => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 height: 52, padding: '0 18px', fontSize: 12, fontWeight: 500,
                 letterSpacing: '0.07em', textTransform: 'uppercase',
-                color: tab === t ? 'var(--ink)' : 'var(--ink-soft)',
-                borderBottom: tab === t ? '2px solid var(--gold)' : '2px solid transparent',
+                color: tab === t.id ? 'var(--ink)' : 'var(--ink-soft)',
+                borderBottom: tab === t.id ? '2px solid var(--gold)' : '2px solid transparent',
                 transition: 'all 0.2s',
               }}>
-                {t === 'work' ? 'Scene Studio' : 'Archive'}
+                {t.label}
               </button>
             ))}
           </div>
@@ -63,6 +69,8 @@ export default function Home() {
             <SetupPanel novel={novel} />
           ) : tab === 'work' ? (
             <WorkPanel novel={novel} />
+          ) : tab === 'manual' ? (
+            <ManualPanel novel={novel} />
           ) : (
             <HistoryPanel />
           )}
