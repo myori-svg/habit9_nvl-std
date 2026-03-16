@@ -24,7 +24,7 @@ const STEPS = [
   },
   {
     id: 'char-prompt',
-    label: '④ 캐릭터 텍스트 프롬프트',
+    label: '④ 캐릭터 이미지 프롬프트',
     desc: '이미지 생성용 텍스트 프롬프트 작성',
   },
   {
