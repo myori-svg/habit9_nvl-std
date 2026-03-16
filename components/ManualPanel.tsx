@@ -24,7 +24,7 @@ const STEPS = [
   },
   {
     id: 'char-prompt',
-    label: '④ 캐릭터 이미지 프롬프트',
+    label: '④ 캐릭터 이미지 생성',
     desc: '이미지 생성용 텍스트 프롬프트 작성',
   },
   {
@@ -361,75 +361,75 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
   })();
 
   const compositionPrompt = `각 <항목>별로 어울리는 배경화면을 생성할 수 있도록 화풍, 캐릭터 외형을 제외한 장면의 구도를 나타내는 이미지 생성 프롬프트를 생성해줘
-각 문제는 === 구분선으로 나누고, 문제 본문과 각 선택지는 --- 구분선으로 구분할 것
-답변 반환시에는 동일한 구분선 구조를 유지하고, 각 항목의 시작에는 제목을 붙여서 코드블럭으로 반환할 것
-내용에 알맞게 캐릭터들의 구도도 설정하는데, 어떤 캐릭터가 어떤 구도를 잡고 있는지 명시할 것
-캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것
+    각 문제는 === 구분선으로 나누고, 문제 본문과 각 선택지는 --- 구분선으로 구분할 것
+    답변 반환시에는 동일한 구분선 구조를 유지하고, 각 항목의 시작에는 제목을 붙여서 코드블럭으로 반환할 것
+    내용에 알맞게 캐릭터들의 구도도 설정하는데, 어떤 캐릭터가 어떤 구도를 잡고 있는지 명시할 것
+    주어진 내용에서 캐릭터가 느낄만한 표정을 구체적으로 묘사할 것
+    캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것
 
-${questionItems}`;
+    ${questionItems}`;
 
-  const charInfoPrompts = charInfoNames.map((name) => ({
-    name,
-    prompt: `소설 "${novel.title}"에 등장하는 캐릭터 "${name || '(캐릭터 이름)'}"의 정보를 정리해주세요.
+      const charInfoPrompts = charInfoNames.map((name) => ({
+        name,
+        prompt: `소설 "${novel.title}"에 등장하는 캐릭터 "${name || '(캐릭터 이름)'}"의 정보를 정리해주세요.
 
-아래 내용을 포함해주세요:
-- 나이 및 신체적 외형 (머리카락, 눈, 체형, 주로 입는 옷)
-- 성격 특징
-- 이야기에서의 역할
+    아래 내용을 포함해주세요:
+    - 나이 및 신체적 외형 (머리카락, 눈, 체형, 주로 입는 옷)
+    - 성격 특징
+    - 이야기에서의 역할
 
-외형 묘사는 구체적으로. 150단어 이내.`,
-  }));
+    외형 묘사는 구체적으로. 150단어 이내.`,
+      }));
 
   const styleRef =
     novel.stylePrompt ||
     'cozy heartwarming watercolor and colored pencil storybook illustration, soft hand-drawn outlines, warm golden light, muted pastels and earthy browns, framed by a decorative vine border';
 
   const charPromptPrompt = `아래 조건에 따라 캐릭터의 외형을 잘 드러나는 이미지 텍스트 프롬프트를 생성해주세요.
+    - Full-body storybook illustration
+    - 외형, 의상, 성격이 드러나는 표정과 포즈 묘사
+    - 성격 정보를 표정에 반영할 것
+    - 아래 스타일을 따를 것
 
-- Full-body storybook illustration
-- 외형, 의상, 성격이 드러나는 표정과 포즈 묘사
-- 성격 정보를 표정에 반영할 것
-- 아래 스타일을 따를 것
+    <image style>
+    ${styleRef}
 
-<image style>
-${styleRef}
+    <character info>
+    캐릭터명: ${charPromptName || '(이름)'}
+    ${charPromptInfo || '(캐릭터 정보를 입력하세요)'}
 
-<character info>
-캐릭터명: ${charPromptName || '(이름)'}
-${charPromptInfo || '(캐릭터 정보를 입력하세요)'}
+    프롬프트 텍스트만 출력. 영어로 작성.`;
 
-프롬프트 텍스트만 출력. 영어로 작성.`;
+      const scenePart = novel.parts.find((p) => p.id === scenePartId);
+      const selectedDQ = scenePart?.discussionQuestions.find(
+        (d) => d.id === sceneDQId
+      );
+      const selectedChars = novel.characters.filter((c) =>
+        sceneCharIds.includes(c.id)
+      );
+      const charPromptsText = selectedChars
+        .map(
+          (c) =>
+            `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ④ 단계에서 생성 필요)'}`
+        )
+        .join('\n\n');
 
-  const scenePart = novel.parts.find((p) => p.id === scenePartId);
-  const selectedDQ = scenePart?.discussionQuestions.find(
-    (d) => d.id === sceneDQId
-  );
-  const selectedChars = novel.characters.filter((c) =>
-    sceneCharIds.includes(c.id)
-  );
-  const charPromptsText = selectedChars
-    .map(
-      (c) =>
-        `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ④ 단계에서 생성 필요)'}`
-    )
-    .join('\n\n');
+      const scenePrompt = `아래 지시 사항에 따라 이미지를 생성해주세요.
 
-  const scenePrompt = `아래 지시 사항에 따라 이미지를 생성해주세요.
+    - 스타일은 <image style>을 따를 것${novel.styleImageBase64 ? ' (스타일 참고 이미지도 함께 제공)' : ''}
+    - 캐릭터는 <character prompt>에 따라 묘사하고, 캐릭터명은 {}로 구분
+    - 구도는 <composition>을 따를 것
+    - 표정은 역동적으로
+    - 이미지 비율: 16:9
 
-- 스타일은 <image style>을 따를 것${novel.styleImageBase64 ? ' (스타일 참고 이미지도 함께 제공)' : ''}
-- 캐릭터는 <character prompt>에 따라 묘사하고, 캐릭터명은 {}로 구분
-- 구도는 <composition>을 따를 것
-- 표정은 역동적으로
-- 이미지 비율: 16:9
+    <image style>
+    ${styleRef}
 
-<image style>
-${styleRef}
+    <composition>
+    ${sceneComposition || '(구도 프롬프트를 입력하거나 DQ를 선택하세요)'}
 
-<composition>
-${sceneComposition || '(구도 프롬프트를 입력하거나 DQ를 선택하세요)'}
-
-<character prompt>
-${charPromptsText || '(캐릭터를 선택하세요)'}`;
+    <character prompt>
+    ${charPromptsText || '(캐릭터를 선택하세요)'}`;
 
   // ── Render ──────────────────────────────────────────────────────
   return (
