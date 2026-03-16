@@ -3,35 +3,37 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "biome lint .",
-    "fix": "biome check --write .",
-    "fix:unsafe": "biome check --write --unsafe .",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "fix": "biome check --write ./app ./components ./lib ./types",
+    "fix:unsafe": "biome check --write --unsafe ./app ./components ./lib ./types",
     "check:types": "tsc --noEmit",
-    "check:format": "biome format .",
-    "check:unused": "biome check --reporter=summary .",
+    "check:format": "biome format ./app ./components ./lib ./types",
+    "check:unused": "biome check --reporter=summary ./app ./components ./lib ./types",
     "check-all": "yarn check:types && yarn check:format && yarn check:unused",
     "fix-all": "yarn fix && yarn check:types"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.0",
-    "firebase": "^12.10.0",
-    "lucide-react": "^0.469.0",
-    "next": "^15.5.12",
+    "next": "15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "@google/generative-ai": "^0.24.0",
+    "firebase": "^11.0.0",
+    "lucide-react": "^0.469.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "typescript": "^5",
+    "tailwindcss": "^3.4.1",
     "autoprefixer": "^10.0.1",
+    "postcss": "^8",
     "eslint": "^9",
     "eslint-config-next": "15.1.0",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "@biomejs/biome": "^2.4.7"
   }
 }
