@@ -8,10 +8,14 @@ export function driveUrlToDirectUrl(driveUrl: string): string {
 }
 
 // Fetch image as base64 from Google Drive
-export async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
+export async function fetchImageAsBase64(
+  url: string
+): Promise<{ data: string; mimeType: string } | null> {
   try {
     const directUrl = driveUrlToDirectUrl(url);
-    const res = await fetch(`/api/fetch-image?url=${encodeURIComponent(directUrl)}`);
+    const res = await fetch(
+      `/api/fetch-image?url=${encodeURIComponent(directUrl)}`
+    );
     if (!res.ok) return null;
     const { data, mimeType } = await res.json();
     return { data, mimeType };

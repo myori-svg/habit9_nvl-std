@@ -1,9 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Novel, Character, DiscussionQuestion, HistoryEntry } from '@/types';
+import type {
+  Character,
+  DiscussionQuestion,
+  HistoryEntry,
+  Novel,
+} from '@/types';
 import {
-  saveNovel, deleteNovel as fbDeleteNovel,
-  subscribeNovels, saveCharacterImage, saveSceneImage,
+  deleteNovel as fbDeleteNovel,
+  saveCharacterImage,
+  saveNovel,
+  saveSceneImage,
+  subscribeNovels,
 } from './firestore';
 
 interface AppStore {
@@ -17,11 +25,31 @@ interface AppStore {
   updateNovel: (id: string, data: Partial<Novel>) => Promise<void>;
   deleteNovel: (id: string) => Promise<void>;
 
-  updateCharacter: (novelId: string, charId: string, data: Partial<Character>) => Promise<void>;
-  saveCharImage: (novelId: string, charId: string, base64: string, mime: string) => Promise<string>;
+  updateCharacter: (
+    novelId: string,
+    charId: string,
+    data: Partial<Character>
+  ) => Promise<void>;
+  saveCharImage: (
+    novelId: string,
+    charId: string,
+    base64: string,
+    mime: string
+  ) => Promise<string>;
 
-  updateDQ: (novelId: string, partId: string, dqId: string, data: Partial<DiscussionQuestion>) => Promise<void>;
-  saveScene: (novelId: string, partId: string, dqId: string, base64: string, mime: string) => Promise<string>;
+  updateDQ: (
+    novelId: string,
+    partId: string,
+    dqId: string,
+    data: Partial<DiscussionQuestion>
+  ) => Promise<void>;
+  saveScene: (
+    novelId: string,
+    partId: string,
+    dqId: string,
+    base64: string,
+    mime: string
+  ) => Promise<string>;
 
   history: HistoryEntry[];
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void;
@@ -66,7 +94,9 @@ export const useStore = create<AppStore>()(
         if (!novel) return;
         const updated = {
           ...novel,
-          characters: novel.characters.map((c) => (c.id === charId ? { ...c, ...data } : c)),
+          characters: novel.characters.map((c) =>
+            c.id === charId ? { ...c, ...data } : c
+          ),
         };
         await saveNovel(updated);
       },
@@ -78,12 +108,21 @@ export const useStore = create<AppStore>()(
         // imageBase64는 in-memory에만 저장 (Firebase엔 URL만)
         set((s) => ({
           novels: s.novels.map((n) =>
-            n.id !== novelId ? n : {
-              ...n,
-              characters: n.characters.map((c) =>
-                c.id === charId ? { ...c, imageUrl: url, imageBase64: base64, imageMime: mime } : c
-              ),
-            }
+            n.id !== novelId
+              ? n
+              : {
+                  ...n,
+                  characters: n.characters.map((c) =>
+                    c.id === charId
+                      ? {
+                          ...c,
+                          imageUrl: url,
+                          imageBase64: base64,
+                          imageMime: mime,
+                        }
+                      : c
+                  ),
+                }
           ),
         }));
         return url;
@@ -95,12 +134,14 @@ export const useStore = create<AppStore>()(
         const updated = {
           ...novel,
           parts: novel.parts.map((p) =>
-            p.id !== partId ? p : {
-              ...p,
-              discussionQuestions: p.discussionQuestions.map((dq) =>
-                dq.id === dqId ? { ...dq, ...data } : dq
-              ),
-            }
+            p.id !== partId
+              ? p
+              : {
+                  ...p,
+                  discussionQuestions: p.discussionQuestions.map((dq) =>
+                    dq.id === dqId ? { ...dq, ...data } : dq
+                  ),
+                }
           ),
         };
         await saveNovel(updated);
@@ -113,17 +154,29 @@ export const useStore = create<AppStore>()(
         // sceneImage는 in-memory에만 저장
         set((s) => ({
           novels: s.novels.map((n) =>
-            n.id !== novelId ? n : {
-              ...n,
-              parts: n.parts.map((p) =>
-                p.id !== partId ? p : {
-                  ...p,
-                  discussionQuestions: p.discussionQuestions.map((dq) =>
-                    dq.id === dqId ? { ...dq, sceneImageUrl: url, sceneImage: base64, sceneMime: mime } : dq
+            n.id !== novelId
+              ? n
+              : {
+                  ...n,
+                  parts: n.parts.map((p) =>
+                    p.id !== partId
+                      ? p
+                      : {
+                          ...p,
+                          discussionQuestions: p.discussionQuestions.map(
+                            (dq) =>
+                              dq.id === dqId
+                                ? {
+                                    ...dq,
+                                    sceneImageUrl: url,
+                                    sceneImage: base64,
+                                    sceneMime: mime,
+                                  }
+                                : dq
+                          ),
+                        }
                   ),
                 }
-              ),
-            }
           ),
         }));
         return url;
@@ -133,7 +186,11 @@ export const useStore = create<AppStore>()(
       addHistory: (entry) =>
         set((s) => ({
           history: [
-            { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
+            {
+              ...entry,
+              id: crypto.randomUUID(),
+              createdAt: new Date().toISOString(),
+            },
             ...s.history,
           ].slice(0, 200),
         })),
@@ -148,7 +205,10 @@ export const useStore = create<AppStore>()(
 
       stopSync: () => {
         const { unsubscribe } = get();
-        if (unsubscribe) { unsubscribe(); set({ unsubscribe: null }); }
+        if (unsubscribe) {
+          unsubscribe();
+          set({ unsubscribe: null });
+        }
       },
     }),
     {
@@ -161,10 +221,18 @@ export const useStore = create<AppStore>()(
           ...n,
           styleImageBase64: undefined,
           styleImageMime: undefined,
-          characters: n.characters.map((c) => ({ ...c, imageBase64: undefined, imageMime: undefined })),
+          characters: n.characters.map((c) => ({
+            ...c,
+            imageBase64: undefined,
+            imageMime: undefined,
+          })),
           parts: n.parts.map((p) => ({
             ...p,
-            discussionQuestions: p.discussionQuestions.map((dq) => ({ ...dq, sceneImage: undefined, sceneMime: undefined })),
+            discussionQuestions: p.discussionQuestions.map((dq) => ({
+              ...dq,
+              sceneImage: undefined,
+              sceneMime: undefined,
+            })),
           })),
         })),
       }),

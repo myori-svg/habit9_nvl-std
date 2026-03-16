@@ -3,9 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "biome lint .",
+    "fix": "biome check --write .",
+    "fix:unsafe": "biome check --write --unsafe .",
+    "check:types": "tsc --noEmit",
+    "check:format": "biome format .",
+    "check:unused": "biome check --reporter=summary .",
+    "check-all": "yarn check:types && yarn check:format && yarn check:unused",
+    "fix-all": "yarn fix && yarn check:types"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

@@ -1,13 +1,13 @@
 'use client';
-import { useState } from 'react';
-import { useStore } from '@/lib/store';
-import Sidebar from '@/components/Sidebar';
-import SetupPanel from '@/components/SetupPanel';
-import WorkPanel from '@/components/WorkPanel';
-import ManualPanel from '@/components/ManualPanel';
-import HistoryPanel from '@/components/HistoryPanel';
-import SettingsModal from '@/components/SettingsModal';
 import { Settings } from 'lucide-react';
+import { useState } from 'react';
+import HistoryPanel from '@/components/HistoryPanel';
+import ManualPanel from '@/components/ManualPanel';
+import SettingsModal from '@/components/SettingsModal';
+import SetupPanel from '@/components/SetupPanel';
+import Sidebar from '@/components/Sidebar';
+import WorkPanel from '@/components/WorkPanel';
+import { useStore } from '@/lib/store';
 
 type Tab = 'work' | 'manual' | 'history';
 
@@ -29,34 +29,76 @@ export default function Home() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <header style={{
-          height: 52, borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 24px', background: 'white', flexShrink: 0,
-        }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <header
+          style={{
+            height: 52,
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 24px',
+            background: 'white',
+            flexShrink: 0,
+          }}
+        >
           <div style={{ display: 'flex' }}>
-            {novel && !isSetup && TABS.map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                height: 52, padding: '0 18px', fontSize: 12, fontWeight: 500,
-                letterSpacing: '0.07em', textTransform: 'uppercase',
-                color: tab === t.id ? 'var(--ink)' : 'var(--ink-soft)',
-                borderBottom: tab === t.id ? '2px solid var(--gold)' : '2px solid transparent',
-                transition: 'all 0.2s',
-              }}>
-                {t.label}
-              </button>
-            ))}
+            {novel &&
+              !isSetup &&
+              TABS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    height: 52,
+                    padding: '0 18px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    letterSpacing: '0.07em',
+                    textTransform: 'uppercase',
+                    color: tab === t.id ? 'var(--ink)' : 'var(--ink-soft)',
+                    borderBottom:
+                      tab === t.id
+                        ? '2px solid var(--gold)'
+                        : '2px solid transparent',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
           </div>
 
-          <button onClick={() => setShowSettings(true)} style={{
-            background: 'none', border: '1px solid var(--border)', cursor: 'pointer',
-            padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6,
-            fontSize: 12, color: 'var(--ink-soft)', transition: 'all 0.2s',
-          }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--gold)')}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+          <button
+            onClick={() => setShowSettings(true)}
+            style={{
+              background: 'none',
+              border: '1px solid var(--border)',
+              cursor: 'pointer',
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              color: 'var(--ink-soft)',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.borderColor = 'var(--gold)')
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.borderColor = 'var(--border)')
+            }
           >
             <Settings size={13} /> Settings
           </button>
@@ -84,10 +126,25 @@ export default function Home() {
 
 function EmptyState() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: 10, opacity: 0.45, textAlign: 'center' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '60vh',
+        gap: 10,
+        opacity: 0.45,
+        textAlign: 'center',
+      }}
+    >
       <div style={{ fontSize: 48 }}>📚</div>
-      <p className="serif" style={{ fontSize: 22, fontWeight: 300, margin: 0 }}>Add a novel to get started</p>
-      <p style={{ fontSize: 13, margin: 0 }}>Use the sidebar to create your first novel project</p>
+      <p className="serif" style={{ fontSize: 22, fontWeight: 300, margin: 0 }}>
+        Add a novel to get started
+      </p>
+      <p style={{ fontSize: 13, margin: 0 }}>
+        Use the sidebar to create your first novel project
+      </p>
     </div>
   );
 }

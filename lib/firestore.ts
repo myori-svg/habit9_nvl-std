@@ -1,13 +1,24 @@
 import {
-  collection, doc, getDocs, getDoc,
-  setDoc, updateDoc, deleteDoc, onSnapshot,
-  query, orderBy, Unsubscribe,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  setDoc,
+  type Unsubscribe,
+  updateDoc,
 } from 'firebase/firestore';
 import {
-  ref, uploadString, getDownloadURL, deleteObject,
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadString,
 } from 'firebase/storage';
+import { Character, DiscussionQuestion, type Novel, NovelPart } from '@/types';
 import { db, storage } from './firebase';
-import { Novel, Character, NovelPart, DiscussionQuestion } from '@/types';
 
 // ── Collections ──────────────────────────────────────────────────
 const NOVELS = 'novels';
@@ -15,7 +26,9 @@ const NOVELS = 'novels';
 // ── Novel CRUD ───────────────────────────────────────────────────
 
 export async function fetchNovels(): Promise<Novel[]> {
-  const snap = await getDocs(query(collection(db, NOVELS), orderBy('createdAt', 'desc')));
+  const snap = await getDocs(
+    query(collection(db, NOVELS), orderBy('createdAt', 'desc'))
+  );
   return snap.docs.map((d) => d.data() as Novel);
 }
 
@@ -61,8 +74,10 @@ export async function saveNovel(novel: Novel): Promise<void> {
   await setDoc(doc(db, NOVELS, novel.id), toSave);
 }
 
-
-export async function updateNovelField(novelId: string, data: Partial<Novel>): Promise<void> {
+export async function updateNovelField(
+  novelId: string,
+  data: Partial<Novel>
+): Promise<void> {
   await updateDoc(doc(db, NOVELS, novelId), data as Record<string, unknown>);
 }
 
@@ -79,7 +94,11 @@ export async function uploadImage(
   mimeType: string
 ): Promise<string> {
   const storageRef = ref(storage, path);
-  await uploadString(storageRef, `data:${mimeType};base64,${base64}`, 'data_url');
+  await uploadString(
+    storageRef,
+    `data:${mimeType};base64,${base64}`,
+    'data_url'
+  );
   return getDownloadURL(storageRef);
 }
 
@@ -121,12 +140,16 @@ export async function saveSceneImage(
   const url = await uploadImage(path, base64, mimeType);
 
   const updatedParts = novel.parts.map((p) =>
-    p.id !== partId ? p : {
-      ...p,
-      discussionQuestions: p.discussionQuestions.map((dq) =>
-        dq.id === dqId ? { ...dq, sceneImageUrl: url, sceneImage: undefined } : dq
-      ),
-    }
+    p.id !== partId
+      ? p
+      : {
+          ...p,
+          discussionQuestions: p.discussionQuestions.map((dq) =>
+            dq.id === dqId
+              ? { ...dq, sceneImageUrl: url, sceneImage: undefined }
+              : dq
+          ),
+        }
   );
   await updateDoc(doc(db, NOVELS, novel.id), { parts: updatedParts });
   return url;

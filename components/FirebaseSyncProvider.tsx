@@ -2,7 +2,11 @@
 import { useEffect } from 'react';
 import { useStore } from '@/lib/store';
 
-export default function FirebaseSyncProvider({ children }: { children: React.ReactNode }) {
+export default function FirebaseSyncProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { startSync, stopSync } = useStore();
 
   useEffect(() => {

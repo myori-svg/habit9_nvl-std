@@ -17,81 +17,127 @@
   --shadow: rgba(26, 20, 16, 0.12);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   background-color: var(--cream);
   color: var(--ink);
   min-height: 100vh;
 }
 
-h1, h2, h3, .serif {
-  font-family: 'Cormorant Garamond', serif;
+h1,
+h2,
+h3,
+.serif {
+  font-family: "Cormorant Garamond", serif;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--parchment); }
-::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--parchment);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gold-dim);
+  border-radius: 3px;
+}
 
 /* Animations */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
 }
 @keyframes pulse-gold {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 168, 76, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(201, 168, 76, 0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(201, 168, 76, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(201, 168, 76, 0);
+  }
 }
 
-.fade-up { animation: fadeUp 0.4s ease forwards; }
+.fade-up {
+  animation: fadeUp 0.4s ease forwards;
+}
 
 .btn-primary {
   background: var(--ink);
   color: var(--parchment);
   border: none;
   padding: 10px 22px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.06em;
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn-primary:hover { background: var(--ink-soft); transform: translateY(-1px); }
-.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn-primary:hover {
+  background: var(--ink-soft);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
 
 .btn-gold {
   background: var(--gold);
   color: var(--ink);
   border: none;
   padding: 10px 22px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.06em;
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn-gold:hover { background: var(--gold-light); transform: translateY(-1px); }
-.btn-gold:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn-gold:hover {
+  background: var(--gold-light);
+  transform: translateY(-1px);
+}
+.btn-gold:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
 
 .btn-ghost {
   background: transparent;
   color: var(--ink-soft);
   border: 1px solid var(--border);
   padding: 8px 18px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn-ghost:hover { border-color: var(--gold); color: var(--ink); }
+.btn-ghost:hover {
+  border-color: var(--gold);
+  color: var(--ink);
+}
 
 .card {
   background: white;
@@ -104,16 +150,23 @@ h1, h2, h3, .serif {
   border: 1px solid var(--border);
   background: var(--cream);
   padding: 10px 14px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 14px;
   color: var(--ink);
   outline: none;
   transition: border-color 0.2s;
 }
-.input-field:focus { border-color: var(--gold); }
+.input-field:focus {
+  border-color: var(--gold);
+}
 
 .loading-shimmer {
-  background: linear-gradient(90deg, var(--parchment) 25%, var(--parchment-dark) 50%, var(--parchment) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--parchment) 25%,
+    var(--parchment-dark) 50%,
+    var(--parchment) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }

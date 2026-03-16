@@ -1,10 +1,12 @@
 'use client';
-import { useState, useRef } from 'react';
+import { AlertCircle, CheckCircle, Loader, Play, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
-import { Novel } from '@/types';
-import { Upload, Play, CheckCircle, Loader, AlertCircle } from 'lucide-react';
+import type { Novel } from '@/types';
 
-interface Props { novel: Novel; }
+interface Props {
+  novel: Novel;
+}
 
 interface ProgressEvent {
   step: string;
@@ -31,7 +33,7 @@ const STEP_LABELS: Record<string, string> = {
   'generating-char-info': 'Character Info',
   'generating-char-prompts': 'Character Prompts',
   'generating-char-images': 'Character Images',
-  'done': 'Complete',
+  done: 'Complete',
 };
 
 export default function SetupPanel({ novel }: Props) {
@@ -63,20 +65,35 @@ export default function SetupPanel({ novel }: Props) {
 
   const handleRun = async () => {
     if (!summary.trim()) return;
-    if (!apiKey) { setError('API key not set — go to Settings'); return; }
+    if (!apiKey) {
+      setError('API key not set — go to Settings');
+      return;
+    }
 
     setRunning(true);
     setError('');
     setProgress({ step: 'generating-dq', message: 'Starting…' });
 
     // Save summary to novel
-    updateNovel(novel.id, { summary, stylePrompt, styleImageBase64, styleImageMime });
+    updateNovel(novel.id, {
+      summary,
+      stylePrompt,
+      styleImageBase64,
+      styleImageMime,
+    });
 
     try {
       const res = await fetch('/api/setup-novel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey, title: novel.title, summary, stylePrompt, styleImageBase64, styleImageMime }),
+        body: JSON.stringify({
+          apiKey,
+          title: novel.title,
+          summary,
+          stylePrompt,
+          styleImageBase64,
+          styleImageMime,
+        }),
       });
 
       if (!res.body) throw new Error('No response stream');
@@ -122,11 +139,22 @@ export default function SetupPanel({ novel }: Props) {
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
-        <h2 className="serif" style={{ fontSize: 28, fontWeight: 300, margin: '0 0 6px' }}>
+        <h2
+          className="serif"
+          style={{ fontSize: 28, fontWeight: 300, margin: '0 0 6px' }}
+        >
           Setup: {novel.title}
         </h2>
-        <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: 0, opacity: 0.7 }}>
-          Paste the full chapter summary and a style reference image. The AI will automatically generate everything needed.
+        <p
+          style={{
+            fontSize: 13,
+            color: 'var(--ink-soft)',
+            margin: 0,
+            opacity: 0.7,
+          }}
+        >
+          Paste the full chapter summary and a style reference image. The AI
+          will automatically generate everything needed.
         </p>
       </div>
 
@@ -134,7 +162,16 @@ export default function SetupPanel({ novel }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Summary input */}
           <div className="card" style={{ padding: 24 }}>
-            <label style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-soft)', display: 'block', marginBottom: 10 }}>
+            <label
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--ink-soft)',
+                display: 'block',
+                marginBottom: 10,
+              }}
+            >
               Full Novel Summary *
             </label>
             <textarea
@@ -148,38 +185,102 @@ export default function SetupPanel({ novel }: Props) {
 
           {/* Style image upload */}
           <div className="card" style={{ padding: 24 }}>
-            <label style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-soft)', display: 'block', marginBottom: 10 }}>
+            <label
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--ink-soft)',
+                display: 'block',
+                marginBottom: 10,
+              }}
+            >
               Style Reference Image (화풍 참고)
             </label>
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <div
                 onClick={() => fileRef.current?.click()}
                 style={{
-                  width: 120, height: 120, border: '2px dashed var(--border)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', flexShrink: 0, transition: 'border-color 0.2s',
+                  width: 120,
+                  height: 120,
+                  border: '2px dashed var(--border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'border-color 0.2s',
                   background: stylePreview ? 'none' : 'var(--cream)',
-                  position: 'relative', overflow: 'hidden',
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--gold)')}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.borderColor = 'var(--gold)')
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.borderColor = 'var(--border)')
+                }
               >
                 {stylePreview ? (
-                  <img src={stylePreview} alt="style ref" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img
+                    src={stylePreview}
+                    alt="style ref"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
                 ) : (
                   <>
-                    <Upload size={20} style={{ color: 'var(--gold-dim)', marginBottom: 6 }} />
-                    <span style={{ fontSize: 11, color: 'var(--ink-soft)', textAlign: 'center' }}>Click to upload</span>
+                    <Upload
+                      size={20}
+                      style={{ color: 'var(--gold-dim)', marginBottom: 6 }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--ink-soft)',
+                        textAlign: 'center',
+                      }}
+                    >
+                      Click to upload
+                    </span>
                   </>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleStyleImage} />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleStyleImage}
+              />
 
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                  Upload any illustration that represents the art style you want. This will be referenced for all character and scene images.
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--ink-soft)',
+                    margin: '0 0 10px',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Upload any illustration that represents the art style you
+                  want. This will be referenced for all character and scene
+                  images.
                 </p>
-                <label style={{ fontSize: 11, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--ink-soft)', display: 'block', marginBottom: 6 }}>
+                <label
+                  style={{
+                    fontSize: 11,
+                    letterSpacing: '0.07em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink-soft)',
+                    display: 'block',
+                    marginBottom: 6,
+                  }}
+                >
                   Style Prompt (optional, supplements the image)
                 </label>
                 <textarea
@@ -194,7 +295,18 @@ export default function SetupPanel({ novel }: Props) {
           </div>
 
           {error && (
-            <div style={{ background: '#fff5f5', border: '1px solid #fcc', padding: '10px 14px', fontSize: 13, color: 'var(--crimson)', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div
+              style={{
+                background: '#fff5f5',
+                border: '1px solid #fcc',
+                padding: '10px 14px',
+                fontSize: 13,
+                color: 'var(--crimson)',
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+              }}
+            >
               <AlertCircle size={14} /> {error}
             </div>
           )}
@@ -203,7 +315,14 @@ export default function SetupPanel({ novel }: Props) {
             className="btn-gold"
             onClick={handleRun}
             disabled={!summary.trim()}
-            style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', fontSize: 13 }}
+            style={{
+              alignSelf: 'flex-end',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '12px 24px',
+              fontSize: 13,
+            }}
           >
             <Play size={14} /> Run Full Setup Pipeline
           </button>
@@ -213,34 +332,86 @@ export default function SetupPanel({ novel }: Props) {
       {/* Progress display */}
       {(running || progress?.step === 'done') && (
         <div className="card fade-up" style={{ padding: 28 }}>
-          <h3 className="serif" style={{ fontSize: 18, fontWeight: 400, margin: '0 0 20px' }}>
-            {progress?.step === 'done' ? '✅ Setup Complete!' : '⚙️ Running Setup Pipeline…'}
+          <h3
+            className="serif"
+            style={{ fontSize: 18, fontWeight: 400, margin: '0 0 20px' }}
+          >
+            {progress?.step === 'done'
+              ? '✅ Setup Complete!'
+              : '⚙️ Running Setup Pipeline…'}
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {STEP_ORDER.filter(s => s !== 'done').map((step, idx) => {
+            {STEP_ORDER.filter((s) => s !== 'done').map((step, idx) => {
               const isDone = currentStepIdx > idx;
               const isActive = currentStepIdx === idx;
               return (
-                <div key={step} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: isDone ? 'var(--sage)' : isActive ? 'var(--gold)' : 'var(--border)',
-                    transition: 'background 0.3s',
-                  }}>
-                    {isDone ? <CheckCircle size={14} color="white" /> :
-                     isActive ? <Loader size={14} color="var(--ink)" style={{ animation: 'spin 1s linear infinite' }} /> :
-                     <span style={{ fontSize: 11, color: isActive ? 'var(--ink)' : 'var(--ink-soft)' }}>{idx + 1}</span>}
+                <div
+                  key={step}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12 }}
+                >
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: isDone
+                        ? 'var(--sage)'
+                        : isActive
+                          ? 'var(--gold)'
+                          : 'var(--border)',
+                      transition: 'background 0.3s',
+                    }}
+                  >
+                    {isDone ? (
+                      <CheckCircle size={14} color="white" />
+                    ) : isActive ? (
+                      <Loader
+                        size={14}
+                        color="var(--ink)"
+                        style={{ animation: 'spin 1s linear infinite' }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: isActive ? 'var(--ink)' : 'var(--ink-soft)',
+                        }}
+                      >
+                        {idx + 1}
+                      </span>
+                    )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 13, fontWeight: isActive ? 500 : 400, color: isDone ? 'var(--sage)' : isActive ? 'var(--ink)' : 'var(--ink-soft)', opacity: isDone || isActive ? 1 : 0.4 }}>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: isActive ? 500 : 400,
+                        color: isDone
+                          ? 'var(--sage)'
+                          : isActive
+                            ? 'var(--ink)'
+                            : 'var(--ink-soft)',
+                        opacity: isDone || isActive ? 1 : 0.4,
+                      }}
+                    >
                       {STEP_LABELS[step]}
                     </span>
                     {isActive && progress && (
-                      <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--ink-soft)',
+                          marginTop: 2,
+                        }}
+                      >
                         {progress.message}
-                        {progress.total && ` (${progress.current}/${progress.total})`}
+                        {progress.total &&
+                          ` (${progress.current}/${progress.total})`}
                       </div>
                     )}
                   </div>

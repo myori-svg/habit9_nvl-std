@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
@@ -6,7 +6,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(url);
-    if (!res.ok) return NextResponse.json({ error: 'Fetch failed' }, { status: 400 });
+    if (!res.ok)
+      return NextResponse.json({ error: 'Fetch failed' }, { status: 400 });
 
     const contentType = res.headers.get('content-type') ?? 'image/jpeg';
     const buffer = await res.arrayBuffer();
