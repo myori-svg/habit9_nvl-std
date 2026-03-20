@@ -73,7 +73,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             placeholder="AIza..."
             style={{ paddingRight: 40 }}
           />
-          <button
+          <button type = "button"
             onClick={() => setShow(!show)}
             style={{
               position: 'absolute',
@@ -132,10 +132,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="btn-ghost" onClick={onClose} type = "button">
             Cancel
           </button>
-          <button
+          <button type = "button"
             className="btn-primary"
             onClick={() => {
               setApiKey(key.trim());
