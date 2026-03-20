@@ -1,6 +1,6 @@
 'use client';
 import { Check, Copy } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { Character, type Novel } from '@/types';
 
@@ -8,7 +8,7 @@ interface Props {
   novel: Novel;
 }
 
-type ActiveStep = 'dq' | 'composition' | 'char-info' | 'char-prompt' | 'scene';
+type ActiveStep = 'dq' | 'composition' | 'char-info' | 'char-prompt' | 'char-image' | 'scene';
 
 const STEPS = [
   { id: 'dq', label: '① DQ 생성', desc: 'Discussion Question 생성 프롬프트' },
@@ -24,11 +24,11 @@ const STEPS = [
   },
   {
     id: 'char-prompt',
-    label: '④ 캐릭터 이미지 생성',
+    label: '④ 캐릭터 프롬프트',
     desc: '이미지 생성용 텍스트 프롬프트 작성',
   },
   {
-    id: 'char-img',
+    id: 'char-image',
     label: '⑤ 캐릭터 이미지',
     desc: '캐릭터 이미지 생성 프롬프트',
   },
@@ -122,33 +122,58 @@ function SaveResultBox({
   selectedPartId: string;
   selectedDQId: string;
 }) {
-  const { updateDQ, updateCharacter } = useStore();
-  const [tab, setTab] = useState<'composition' | 'charPrompt' | 'charInfo'>(
+  const { updateDQ, updateCharacter, saveCharImage } = useStore();
+  const [tab, setTab] = useState<'composition' | 'charPrompt' | 'charInfo'| 'charImage'>(
     'composition'
   );
   const [value, setValue] = useState('');
   const [charName, setCharName] = useState(novel.characters[0]?.name ?? '');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (tab === 'charImage') {
+      if (!imageFile) return;
+      setUploading(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const result = reader.result as string;
+          const [header, base64] = result.split(',');
+          const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+          const char = novel.characters.find((c) => c.name === charName);
+          if (char) await saveCharImage(novel.id, char.id, base64, mime);
+          setSaved(true);
+          setTimeout(() => { setSaved(false); setImageFile(null); setImagePreview(''); }, 1500);
+        };
+        reader.readAsDataURL(imageFile);
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
     if (!value.trim()) return;
     if (tab === 'composition' && selectedPartId && selectedDQId) {
-      updateDQ(novel.id, selectedPartId, selectedDQId, {
-        compositionPrompt: value.trim(),
-      });
+      updateDQ(novel.id, selectedPartId, selectedDQId, { compositionPrompt: value.trim() });
     } else if (tab === 'charPrompt') {
       const char = novel.characters.find((c) => c.name === charName);
-      if (char)
-        updateCharacter(novel.id, char.id, { textPrompt: value.trim() });
+      if (char) updateCharacter(novel.id, char.id, { textPrompt: value.trim() });
     } else if (tab === 'charInfo') {
       const char = novel.characters.find((c) => c.name === charName);
       if (char) updateCharacter(novel.id, char.id, { info: value.trim() });
     }
     setSaved(true);
-    setTimeout(() => {
-      setSaved(false);
-      setValue('');
-    }, 1500);
+    setTimeout(() => { setSaved(false); setValue(''); }, 1500);
   };
 
   return (
@@ -268,7 +293,7 @@ export default function ManualPanel({ novel }: Props) {
   const [sceneComposition, setSceneComposition] = useState('');
   const [sceneCharIds, setSceneCharIds] = useState<string[]>([]);
 
-  const [charSubStep, setCharSubStep] = useState<'extract' | 'info'>('extract');
+  const [charSubStep, setCharSubStep] = useState<'extract' | 'info' | 'prompt'>('extract');
   const [charExtractInput, setCharExtractInput] = useState('');
   const [extractedChars, setExtractedChars] = useState<string[]>([]);
   // Reset all when novel changes
@@ -645,8 +670,8 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
           <div>
             {/* Sub-step tabs */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-              {(['extract', 'info'] as const).map((t) => (
-                <button
+              {(['extract', 'info', 'prompt'] as const).map((t) => (
+                <button type = "button"
                   key={t}
                   onClick={() => setCharSubStep(t)}
                   style={{
@@ -661,7 +686,7 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
                     transition: 'all 0.15s',
                   }}
                 >
-                  {t === 'extract' ? '③-0 캐릭터 목록 추출' : '③-1 캐릭터 정보'}
+                  {t === 'extract' ? '③-0 캐릭터 목록 추출' : t === 'info' ? '③-1 캐릭터 정보' : '③-2 캐릭터 이미지'}
                 </button>
               ))}
             </div>
@@ -753,7 +778,7 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
                 {extractedChars.some(
                   (name) => !novel.characters.some((c) => c.name === name)
                 ) && (
-                  <button
+                  <button 
                     className="btn-primary"
                     onClick={() => {
                       const { addNovel, updateNovel } = useStore.getState();
@@ -942,7 +967,54 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
           </div>
         )}
 
-        {/* ── Step 5: Scene ── */}
+        {/* ── Step 5: Char img ── */}
+        {activeStep === 'char-image' && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {novel.characters.length > 0 ? (
+                <select
+                  value={charPromptName}
+                  onChange={(e) => {
+                    setCharPromptName(e.target.value);
+                    const c = novel.characters.find(
+                      (ch) => ch.name === e.target.value
+                    );
+                    setCharPromptInfo(c?.info ?? '');
+                  }}
+                  className="input-field"
+                  style={{ fontSize: 12, flex: 1 }}
+                >
+                  {novel.characters.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="input-field"
+                  value={charPromptName}
+                  onChange={(e) => setCharPromptName(e.target.value)}
+                  placeholder="캐릭터 이름"
+                  style={{ fontSize: 12, flex: 1 }}
+                />
+              )}
+            </div>
+            <textarea
+              className="input-field"
+              value={charPromptInfo}
+              onChange={(e) => setCharPromptInfo(e.target.value)}
+              placeholder="캐릭터 정보 (③에서 Gemini가 생성한 결과 붙여넣기)"
+              style={{ fontSize: 12, minHeight: 80, marginBottom: 12 }}
+            />
+            <PromptBox
+              prompt={charPromptPrompt}
+              label="Gemini에 붙여넣을 프롬프트"
+            />
+          </div>
+        )}
+
+        {/* ── Step 6: Scene ── */}
         {activeStep === 'scene' && (
           <div>
             {novel.parts.length > 0 && (
