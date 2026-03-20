@@ -369,9 +369,9 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
 
     ${questionItems}`;
 
-      const charInfoPrompts = charInfoNames.map((name) => ({
-        name,
-        prompt: `소설 "${novel.title}"에 등장하는 캐릭터 "${name || '(캐릭터 이름)'}"의 정보를 정리해주세요.
+  const charInfoPrompts = charInfoNames.map((name) => ({
+    name,
+    prompt: `소설 "${novel.title}"에 등장하는 캐릭터 "${name || '(캐릭터 이름)'}"의 정보를 정리해주세요.
 
     아래 내용을 포함해주세요:
     - 나이 및 신체적 외형 (머리카락, 눈, 체형, 주로 입는 옷)
@@ -379,7 +379,7 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
     - 이야기에서의 역할
 
     외형 묘사는 구체적으로. 150단어 이내.`,
-      }));
+  }));
 
   const styleRef =
     novel.stylePrompt ||
@@ -400,21 +400,21 @@ ${selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)'}`;
 
     프롬프트 텍스트만 출력. 영어로 작성.`;
 
-      const scenePart = novel.parts.find((p) => p.id === scenePartId);
-      const selectedDQ = scenePart?.discussionQuestions.find(
-        (d) => d.id === sceneDQId
-      );
-      const selectedChars = novel.characters.filter((c) =>
-        sceneCharIds.includes(c.id)
-      );
-      const charPromptsText = selectedChars
-        .map(
-          (c) =>
-            `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ④ 단계에서 생성 필요)'}`
-        )
-        .join('\n\n');
+  const scenePart = novel.parts.find((p) => p.id === scenePartId);
+  const selectedDQ = scenePart?.discussionQuestions.find(
+    (d) => d.id === sceneDQId
+  );
+  const selectedChars = novel.characters.filter((c) =>
+    sceneCharIds.includes(c.id)
+  );
+  const charPromptsText = selectedChars
+    .map(
+      (c) =>
+        `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ④ 단계에서 생성 필요)'}`
+    )
+    .join('\n\n');
 
-      const scenePrompt = `아래 지시 사항에 따라 이미지를 생성해주세요.
+  const scenePrompt = `아래 지시 사항에 따라 이미지를 생성해주세요.
 
     - 스타일은 <image style>을 따를 것${novel.styleImageBase64 ? ' (스타일 참고 이미지도 함께 제공)' : ''}
     - 캐릭터는 <character prompt>에 따라 묘사하고, 캐릭터명은 {}로 구분
