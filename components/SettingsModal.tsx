@@ -39,7 +39,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           >
             Settings
           </h2>
-          <button
+          <button type = "button"
             onClick={onClose}
             style={{
               background: 'none',

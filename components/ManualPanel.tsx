@@ -28,8 +28,13 @@ const STEPS = [
     desc: '이미지 생성용 텍스트 프롬프트 작성',
   },
   {
+    id: 'char-img',
+    label: '⑤ 캐릭터 이미지',
+    desc: '캐릭터 이미지 생성 프롬프트',
+  },
+  {
     id: 'scene',
-    label: '⑤ 장면 생성',
+    label: '⑥ 장면 생성',
     desc: '최종 장면 이미지 생성 프롬프트 조립',
   },
 ] as const;
@@ -42,7 +47,7 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button
+    <button type = "button"
       onClick={handleCopy}
       className="btn-ghost"
       style={{
@@ -168,7 +173,7 @@ function SaveResultBox({
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {(['composition', 'charInfo', 'charPrompt'] as const).map((t) => (
-          <button
+          <button type = "button"
             key={t}
             onClick={() => setTab(t)}
             style={{
@@ -211,7 +216,7 @@ function SaveResultBox({
         placeholder="Gemini에서 생성된 결과를 여기에 붙여넣기"
         style={{ fontSize: 12, minHeight: 80, marginBottom: 8 }}
       />
-      <button
+      <button type = "button"
         className="btn-primary"
         onClick={handleSave}
         disabled={!value.trim()}
