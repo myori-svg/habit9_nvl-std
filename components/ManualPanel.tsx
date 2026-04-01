@@ -262,16 +262,28 @@ ${styleRef}
 
 <character info>
 캐릭터명: ${charPromptName || '(이름)'}
-${charPromptInfo || '(캐릭터 정보를 입력하세요)'}
+${charPromptsText || '(캐릭터 정보를 입력하세요)'}
 
 프롬프트 텍스트만 출력. 영어로 작성.`;
-
-  const scenePart = novel.parts.find((p) => p.id === scenePartId);
-  const selectedChars = novel.characters.filter((c) => sceneCharIds.includes(c.id));
+const selectedChars = novel.characters.filter((c) => sceneCharIds.includes(c.id));
   const charPromptsText = selectedChars.map((c) =>
     `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ④ 단계에서 생성 필요)'}`
   ).join('\n\n');
 
+  const charImagePrompt = `캐릭터 ${charImageName}의 이미지를 생성하기 위한 프롬프트를 작성해주세요.
+  - Full-body storybook illustration
+  - 스타일은 아래를 참고하고, 캐릭터의 외형과 성격이 잘 드러나도록 묘사해주세요.
+
+<image style>
+${styleRef}
+
+<character prompt>
+캐릭터명: ${charImageName || '(이름)'}
+${charPromptsText || '(캐릭터 정보를 입력하세요)'}
+
+프롬프트 텍스트만 출력. 영어로 작성.`;
+
+  const scenePart = novel.parts.find((p) => p.id === scenePartId);
   const scenePrompt = `아래 지시 사항에 따라 이미지를 생성해주세요.
 
 - 스타일은 <image style>을 따를 것${novel.styleImageBase64 ? ' (스타일 참고 이미지도 함께 제공)' : ''}
