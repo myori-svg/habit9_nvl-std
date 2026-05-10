@@ -2,7 +2,7 @@
 import { Settings } from 'lucide-react';
 import { useState } from 'react';
 import HistoryPanel from '@/components/HistoryPanel';
-import ManualPanel from '@/components/ManualPanel';
+import ManualPanel from '@/components/ManualPanel/ManualPanel';
 import SettingsModal from '@/components/SettingsModal';
 import SetupPanel from '@/components/SetupPanel';
 import Sidebar from '@/components/Sidebar';
