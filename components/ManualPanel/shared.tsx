@@ -4,17 +4,14 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 import type { Novel } from "@/types";
 
-export function CopyButton({ text }: { text: string }) {
-	const [copied, setCopied] = useState(false);
-	const handleCopy = () => {
-		navigator.clipboard.writeText(text);
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
-	};
+function CopyButton({
+	onCopy,
+	copied,
+}: { onCopy: () => void; copied: boolean }) {
 	return (
 		<button
 			type="button"
-			onClick={handleCopy}
+			onClick={onCopy}
 			className="btn-ghost"
 			style={{
 				display: "flex",
@@ -41,6 +38,14 @@ export function PromptBox({
 	prompt,
 	label,
 }: { prompt: string; label?: string }) {
+	const [copied, setCopied] = useState(false);
+
+	const handleCopy = () => {
+		navigator.clipboard.writeText(prompt);
+		setCopied(true);
+		setTimeout(() => setCopied(false), 3000);
+	};
+
 	return (
 		<div style={{ marginBottom: 16 }}>
 			{label && (
@@ -75,9 +80,77 @@ export function PromptBox({
 					{prompt}
 				</pre>
 				<div style={{ position: "absolute", top: 8, right: 8 }}>
-					<CopyButton text={prompt} />
+					<CopyButton onCopy={handleCopy} copied={copied} />
 				</div>
 			</div>
+
+			{copied && (
+				<div
+					onClick={() => setCopied(false)}
+					style={{
+						position: "fixed",
+						inset: 0,
+						zIndex: 200,
+						background: "rgba(26,20,16,0.7)",
+						backdropFilter: "blur(4px)",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						animation: "fadeIn 0.2s ease",
+					}}
+				>
+					<div
+						onClick={(e) => e.stopPropagation()}
+						style={{
+							background: "var(--parchment)",
+							border: "1px solid var(--border)",
+							padding: "40px 48px",
+							maxWidth: 420,
+							width: "90%",
+							textAlign: "center",
+							boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+							animation: "slideUp 0.2s ease",
+						}}
+					>
+						<div
+							style={{
+								width: 48,
+								height: 48,
+								borderRadius: "50%",
+								background: "rgba(74,103,65,0.12)",
+								border: "1px solid var(--sage)",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								margin: "0 auto 20px",
+							}}
+						>
+							<Check size={22} style={{ color: "var(--sage)" }} />
+						</div>
+						<p
+							className="serif"
+							style={{ fontSize: 22, fontWeight: 300, margin: "0 0 8px" }}
+						>
+							클립보드에 복사됐어요!
+						</p>
+						<p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "0 0 28px" }}>
+							Gemini에 붙여넣고 결과를 받아오세요.
+						</p>
+						<button
+							type="button"
+							onClick={() => setCopied(false)}
+							className="btn-primary"
+							style={{ fontSize: 13, padding: "10px 28px" }}
+						>
+							확인
+						</button>
+					</div>
+				</div>
+			)}
+			<style>{`
+				@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+				@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+			`}</style>
 		</div>
 	);
 }
