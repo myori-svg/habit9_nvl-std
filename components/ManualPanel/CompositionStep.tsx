@@ -1,7 +1,7 @@
 "use client";
 import type { Novel } from "@/types";
 import { buildCompositionPrompt } from "@/lib/prompts";
-import { PromptBox } from "./shared";
+import { PromptBox, SaveCompositionBox } from "./shared";
 
 interface Props {
 	novel: Novel;
@@ -65,6 +65,7 @@ export default function CompositionStep({
 				prompt={compositionPrompt}
 				label="Gemini에 붙여넣을 프롬프트"
 			/>
+			<SaveCompositionBox novel={novel} compPartId={compPartId} />
 		</div>
 	);
 }

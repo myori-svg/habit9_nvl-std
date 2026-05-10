@@ -1,7 +1,7 @@
 "use client";
 import type { Novel } from "@/types";
 import { buildCharPromptPrompt, getStyleRef } from "@/lib/prompts";
-import { PromptBox } from "./shared";
+import { PromptBox, SaveCharPromptBox } from "./shared";
 
 interface Props {
 	novel: Novel;
@@ -67,6 +67,7 @@ export default function CharPromptStep({
 				prompt={charPromptPrompt}
 				label="Gemini에 붙여넣을 프롬프트"
 			/>
+			<SaveCharPromptBox novel={novel} charName={charPromptName} />
 		</div>
 	);
 }

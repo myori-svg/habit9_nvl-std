@@ -1,20 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Novel } from "@/types";
-import CharImageStep from "./CharImageStep";
 import CharInfoStep from "./CharInfoStep";
-import CharPromptStep from "./CharPromptStep";
 import CompositionStep from "./CompositionStep";
 import DQStep from "./DQStep";
 import SceneStep from "./SceneStep";
 
-type ActiveStep =
-	| "dq"
-	| "composition"
-	| "char-info"
-	| "char-prompt"
-	| "char-image"
-	| "scene";
+type ActiveStep = "dq" | "composition" | "char-info" | "scene";
 
 const STEPS = [
 	{ id: "dq", label: "① DQ 생성", desc: "Discussion Question 생성 프롬프트" },
@@ -23,16 +15,14 @@ const STEPS = [
 		label: "② 구도 프롬프트",
 		desc: "장면 구도 생성 프롬프트",
 	},
-	{ id: "char-info", label: "③ 캐릭터 관리", desc: "캐릭터 추출 / 정보 수집" },
 	{
-		id: "char-prompt",
-		label: "④ 캐릭터 프롬프트",
-		desc: "이미지 생성용 텍스트 프롬프트 작성",
+		id: "char-info",
+		label: "③ 캐릭터 관리",
+		desc: "캐릭터 추출 / 정보 수집 / 프롬프트 작성 / 이미지 업로드",
 	},
-	{ id: "char-image", label: "⑤ 캐릭터 이미지", desc: "캐릭터 이미지 업로드" },
 	{
 		id: "scene",
-		label: "⑥ 장면 생성",
+		label: "④ 장면 생성",
 		desc: "최종 장면 이미지 생성 프롬프트 조립",
 	},
 ] as const;
@@ -53,20 +43,16 @@ export default function ManualPanel({ novel }: Props) {
 	const [compCustomDQ, setCompCustomDQ] = useState("");
 
 	// Step 3
-	const [charSubStep, setCharSubStep] = useState<"extract" | "info">("extract");
+	const [charSubStep, setCharSubStep] = useState<"extract" | "info" | "prompt" | "image">("extract");
 	const [charExtractInput, setCharExtractInput] = useState("");
 	const [extractedChars, setExtractedChars] = useState<string[]>([]);
 	const [charInfoNames, setCharInfoNames] = useState<string[]>([]);
-
-	// Step 4
 	const [charPromptName, setCharPromptName] = useState(
 		novel.characters[0]?.name ?? "",
 	);
 	const [charPromptInfo, setCharPromptInfo] = useState(
 		novel.characters[0]?.info ?? "",
 	);
-
-	// Step 5
 	const [charImageName, setCharImageName] = useState(
 		novel.characters[0]?.name ?? "",
 	);
@@ -75,7 +61,7 @@ export default function ManualPanel({ novel }: Props) {
 	const [uploading, setUploading] = useState(false);
 	const [uploadDone, setUploadDone] = useState(false);
 
-	// Step 6
+	// Step 4
 	const [scenePartId, setScenePartId] = useState(novel.parts[0]?.id ?? "");
 	const [sceneDQId, setSceneDQId] = useState("");
 	const [sceneComposition, setSceneComposition] = useState("");
@@ -97,6 +83,8 @@ export default function ManualPanel({ novel }: Props) {
 		setCharImageName(novel.characters[0]?.name ?? "");
 		setImageFile(null);
 		setImagePreview("");
+		setUploading(false);
+		setUploadDone(false);
 		setScenePartId(novel.parts[0]?.id ?? "");
 		setSceneDQId("");
 		setSceneComposition("");
@@ -197,20 +185,10 @@ export default function ManualPanel({ novel }: Props) {
 						setExtractedChars={setExtractedChars}
 						charInfoNames={charInfoNames}
 						setCharInfoNames={setCharInfoNames}
-					/>
-				)}
-				{activeStep === "char-prompt" && (
-					<CharPromptStep
-						novel={novel}
 						charPromptName={charPromptName}
 						setCharPromptName={setCharPromptName}
 						charPromptInfo={charPromptInfo}
 						setCharPromptInfo={setCharPromptInfo}
-					/>
-				)}
-				{activeStep === "char-image" && (
-					<CharImageStep
-						novel={novel}
 						charImageName={charImageName}
 						setCharImageName={setCharImageName}
 						imageFile={imageFile}

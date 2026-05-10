@@ -1,6 +1,6 @@
 "use client";
 import { Check } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { Novel } from "@/types";
 import { buildCharImagePrompt, getStyleRef } from "@/lib/prompts";
@@ -35,6 +35,7 @@ export default function CharImageStep({
 }: Props) {
 	const { saveCharImage } = useStore();
 	const fileRef = useRef<HTMLInputElement>(null);
+	const [uploadError, setUploadError] = useState("");
 
 	const charImageTextPrompt =
 		novel.characters.find((c) => c.name === charImageName)?.textPrompt ?? "";
@@ -44,12 +45,13 @@ export default function CharImageStep({
 		charImageTextPrompt,
 	);
 
-	const handleImageUpload = async () => {
+	const handleImageUpload = () => {
 		if (!imageFile) return;
 		setUploading(true);
-		try {
-			const reader = new FileReader();
-			reader.onload = async () => {
+		setUploadError("");
+		const reader = new FileReader();
+		reader.onload = async () => {
+			try {
 				const result = reader.result as string;
 				const [header, base64] = result.split(",");
 				const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
@@ -61,11 +63,17 @@ export default function CharImageStep({
 					setImageFile(null);
 					setImagePreview("");
 				}, 1500);
-			};
-			reader.readAsDataURL(imageFile);
-		} finally {
+			} catch (e) {
+				setUploadError(String(e));
+			} finally {
+				setUploading(false);
+			}
+		};
+		reader.onerror = () => {
+			setUploadError("파일 읽기 실패");
 			setUploading(false);
-		}
+		};
+		reader.readAsDataURL(imageFile);
 	};
 
 	return (
@@ -162,6 +170,21 @@ export default function CharImageStep({
 				prompt={charImagePrompt}
 				label="Gemini에 붙여넣을 프롬프트"
 			/>
+
+			{uploadError && (
+				<div
+					style={{
+						marginBottom: 8,
+						padding: "8px 12px",
+						background: "#fff5f5",
+						border: "1px solid #fcc",
+						fontSize: 12,
+						color: "var(--crimson)",
+					}}
+				>
+					{uploadError}
+				</div>
+			)}
 
 			<button
 				type="button"

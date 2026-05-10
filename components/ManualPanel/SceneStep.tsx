@@ -2,7 +2,7 @@
 import { Check } from "lucide-react";
 import type { Novel } from "@/types";
 import { buildScenePrompt, extractCharNames, getStyleRef } from "@/lib/prompts";
-import { PromptBox, SaveResultBox } from "./shared";
+import { PromptBox } from "./shared";
 
 interface Props {
 	novel: Novel;
@@ -181,11 +181,6 @@ export default function SceneStep({
 			<PromptBox
 				prompt={scenePrompt}
 				label="Gemini에 붙여넣을 최종 장면 생성 프롬프트"
-			/>
-			<SaveResultBox
-				novel={novel}
-				selectedPartId={scenePartId}
-				selectedDQId={sceneDQId}
 			/>
 		</div>
 	);

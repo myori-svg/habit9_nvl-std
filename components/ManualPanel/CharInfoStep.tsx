@@ -3,18 +3,34 @@ import { Check } from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { Novel } from "@/types";
 import { buildCharInfoPrompt, extractCharNames } from "@/lib/prompts";
-import { PromptBox } from "./shared";
+import CharImageStep from "./CharImageStep";
+import CharPromptStep from "./CharPromptStep";
+import { PromptBox, SaveCharInfoBox } from "./shared";
 
 interface Props {
 	novel: Novel;
-	charSubStep: "extract" | "info";
-	setCharSubStep: React.Dispatch<React.SetStateAction<"extract" | "info">>;
+	charSubStep: "extract" | "info" | "prompt" | "image";
+	setCharSubStep: React.Dispatch<React.SetStateAction<"extract" | "info" | "prompt" | "image">>;
 	charExtractInput: string;
 	setCharExtractInput: React.Dispatch<React.SetStateAction<string>>;
 	extractedChars: string[];
 	setExtractedChars: React.Dispatch<React.SetStateAction<string[]>>;
 	charInfoNames: string[];
 	setCharInfoNames: React.Dispatch<React.SetStateAction<string[]>>;
+	charPromptName: string;
+	setCharPromptName: React.Dispatch<React.SetStateAction<string>>;
+	charPromptInfo: string;
+	setCharPromptInfo: React.Dispatch<React.SetStateAction<string>>;
+	charImageName: string;
+	setCharImageName: React.Dispatch<React.SetStateAction<string>>;
+	imageFile: File | null;
+	setImageFile: React.Dispatch<React.SetStateAction<File | null>>;
+	imagePreview: string;
+	setImagePreview: React.Dispatch<React.SetStateAction<string>>;
+	uploading: boolean;
+	setUploading: React.Dispatch<React.SetStateAction<boolean>>;
+	uploadDone: boolean;
+	setUploadDone: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function CharInfoStep({
@@ -27,6 +43,20 @@ export default function CharInfoStep({
 	setExtractedChars,
 	charInfoNames,
 	setCharInfoNames,
+	charPromptName,
+	setCharPromptName,
+	charPromptInfo,
+	setCharPromptInfo,
+	charImageName,
+	setCharImageName,
+	imageFile,
+	setImageFile,
+	imagePreview,
+	setImagePreview,
+	uploading,
+	setUploading,
+	uploadDone,
+	setUploadDone,
 }: Props) {
 	const { updateNovel } = useStore();
 
@@ -38,7 +68,7 @@ export default function CharInfoStep({
 	return (
 		<div>
 			<div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-				{(["extract", "info"] as const).map((t) => (
+				{(["extract", "info", "prompt", "image"] as const).map((t) => (
 					<button
 						type="button"
 						key={t}
@@ -54,7 +84,13 @@ export default function CharInfoStep({
 							transition: "all 0.15s",
 						}}
 					>
-						{t === "extract" ? "③-0 캐릭터 목록 추출" : "③-1 캐릭터 정보"}
+						{t === "extract"
+							? "③-0 캐릭터 목록 추출"
+							: t === "info"
+								? "③-1 캐릭터 정보"
+								: t === "prompt"
+									? "③-2 캐릭터 프롬프트"
+									: "③-3 캐릭터 이미지"}
 					</button>
 				))}
 			</div>
@@ -271,7 +307,36 @@ export default function CharInfoStep({
 								.join("\n\n===\n\n")}
 						/>
 					)}
+					<SaveCharInfoBox novel={novel} />
 				</div>
+			)}
+
+			{/* ③-2 */}
+			{charSubStep === "prompt" && (
+				<CharPromptStep
+					novel={novel}
+					charPromptName={charPromptName}
+					setCharPromptName={setCharPromptName}
+					charPromptInfo={charPromptInfo}
+					setCharPromptInfo={setCharPromptInfo}
+				/>
+			)}
+
+			{/* ③-3 */}
+			{charSubStep === "image" && (
+				<CharImageStep
+					novel={novel}
+					charImageName={charImageName}
+					setCharImageName={setCharImageName}
+					imageFile={imageFile}
+					setImageFile={setImageFile}
+					imagePreview={imagePreview}
+					setImagePreview={setImagePreview}
+					uploading={uploading}
+					setUploading={setUploading}
+					uploadDone={uploadDone}
+					setUploadDone={setUploadDone}
+				/>
 			)}
 		</div>
 	);

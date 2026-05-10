@@ -82,37 +82,52 @@ export function PromptBox({
 	);
 }
 
-export function SaveResultBox({
+const saveBoxStyle = {
+	marginTop: 20,
+	padding: 16,
+	background: "var(--parchment)",
+	border: "1px solid var(--border)",
+} as const;
+
+const saveLabelStyle = {
+	fontSize: 11,
+	letterSpacing: "0.08em",
+	textTransform: "uppercase" as const,
+	color: "var(--ink-soft)",
+	marginBottom: 10,
+};
+
+function SaveButton({ saved }: { saved: boolean }) {
+	return saved ? (
+		<>
+			<Check size={12} /> Saved!
+		</>
+	) : (
+		<>저장</>
+	);
+}
+
+// ② 구도 프롬프트 결과 저장
+export function SaveCompositionBox({
 	novel,
-	selectedPartId,
-	selectedDQId,
+	compPartId,
 }: {
 	novel: Novel;
-	selectedPartId: string;
-	selectedDQId: string;
+	compPartId: string;
 }) {
-	const { updateDQ, updateCharacter } = useStore();
-	const [tab, setTab] = useState<"composition" | "charInfo" | "charPrompt">(
-		"composition",
-	);
+	const { updateDQ } = useStore();
+	const [selectedDQId, setSelectedDQId] = useState("");
 	const [value, setValue] = useState("");
-	const [charName, setCharName] = useState(novel.characters[0]?.name ?? "");
 	const [saved, setSaved] = useState(false);
 
+	const part = novel.parts.find((p) => p.id === compPartId);
+	if (!part || part.discussionQuestions.length === 0) return null;
+
 	const handleSave = () => {
-		if (!value.trim()) return;
-		if (tab === "composition" && selectedPartId && selectedDQId) {
-			updateDQ(novel.id, selectedPartId, selectedDQId, {
-				compositionPrompt: value.trim(),
-			});
-		} else if (tab === "charPrompt") {
-			const char = novel.characters.find((c) => c.name === charName);
-			if (char)
-				updateCharacter(novel.id, char.id, { textPrompt: value.trim() });
-		} else if (tab === "charInfo") {
-			const char = novel.characters.find((c) => c.name === charName);
-			if (char) updateCharacter(novel.id, char.id, { info: value.trim() });
-		}
+		if (!value.trim() || !selectedDQId) return;
+		updateDQ(novel.id, compPartId, selectedDQId, {
+			compositionPrompt: value.trim(),
+		});
 		setSaved(true);
 		setTimeout(() => {
 			setSaved(false);
@@ -121,69 +136,81 @@ export function SaveResultBox({
 	};
 
 	return (
-		<div
-			style={{
-				marginTop: 20,
-				padding: 16,
-				background: "var(--parchment)",
-				border: "1px solid var(--border)",
-			}}
-		>
-			<div
-				style={{
-					fontSize: 11,
-					letterSpacing: "0.08em",
-					textTransform: "uppercase",
-					color: "var(--ink-soft)",
-					marginBottom: 10,
-				}}
+		<div style={saveBoxStyle}>
+			<div style={saveLabelStyle}>구도 프롬프트 저장</div>
+			<select
+				value={selectedDQId}
+				onChange={(e) => setSelectedDQId(e.target.value)}
+				className="input-field"
+				style={{ fontSize: 12, marginBottom: 8 }}
 			>
-				Gemini 결과 저장하기
-			</div>
-			<div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-				{(["composition", "charInfo", "charPrompt"] as const).map((t) => (
-					<button
-						type="button"
-						key={t}
-						onClick={() => setTab(t)}
-						style={{
-							padding: "4px 10px",
-							fontSize: 11,
-							cursor: "pointer",
-							background: tab === t ? "var(--ink)" : "white",
-							color: tab === t ? "var(--parchment)" : "var(--ink-soft)",
-							border: "1px solid",
-							borderColor: tab === t ? "var(--ink)" : "var(--border)",
-						}}
-					>
-						{t === "composition"
-							? "구도 프롬프트"
-							: t === "charInfo"
-								? "캐릭터 정보"
-								: "캐릭터 텍스트 프롬프트"}
-					</button>
+				<option value="">— 저장할 DQ 선택 —</option>
+				{part.discussionQuestions.map((dq, i) => (
+					<option key={dq.id} value={dq.id}>
+						Q{i + 1}. {dq.text.slice(0, 50)}…
+					</option>
 				))}
-			</div>
-			{(tab === "charInfo" || tab === "charPrompt") &&
-				novel.characters.length > 0 && (
-					<select
-						value={charName}
-						onChange={(e) => setCharName(e.target.value)}
-						className="input-field"
-						style={{ fontSize: 12, marginBottom: 8 }}
-					>
-						{novel.characters.map((c) => (
-							<option key={c.id} value={c.name}>
-								{c.name}
-							</option>
-						))}
-					</select>
-				)}
+			</select>
 			<textarea
 				className="input-field"
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
-				placeholder="Gemini에서 생성된 결과를 여기에 붙여넣기"
+				placeholder="Gemini에서 생성된 구도 프롬프트를 붙여넣기"
+				style={{ fontSize: 12, minHeight: 80, marginBottom: 8 }}
+			/>
+			<button
+				type="button"
+				className="btn-primary"
+				onClick={handleSave}
+				disabled={!value.trim() || !selectedDQId}
+				style={{ fontSize: 12, padding: "7px 16px", display: "flex", alignItems: "center", gap: 6 }}
+			>
+				<SaveButton saved={saved} />
+			</button>
+		</div>
+	);
+}
+
+// ③-1 캐릭터 정보 결과 저장
+export function SaveCharInfoBox({ novel }: { novel: Novel }) {
+	const { updateCharacter } = useStore();
+	const [charName, setCharName] = useState(novel.characters[0]?.name ?? "");
+	const [value, setValue] = useState("");
+	const [saved, setSaved] = useState(false);
+
+	if (novel.characters.length === 0) return null;
+
+	const handleSave = () => {
+		if (!value.trim()) return;
+		const char = novel.characters.find((c) => c.name === charName);
+		if (char) updateCharacter(novel.id, char.id, { info: value.trim() });
+		setSaved(true);
+		setTimeout(() => {
+			setSaved(false);
+			setValue("");
+		}, 1500);
+	};
+
+	return (
+		<div style={saveBoxStyle}>
+			<div style={saveLabelStyle}>캐릭터 정보 저장</div>
+			<select
+				value={charName}
+				onChange={(e) => setCharName(e.target.value)}
+				className="input-field"
+				style={{ fontSize: 12, marginBottom: 8 }}
+			>
+				{novel.characters.map((c) => (
+					<option key={c.id} value={c.name}>
+						{c.name}
+					</option>
+				))}
+			</select>
+			<textarea
+				className="input-field"
+				value={value}
+				onChange={(e) => setValue(e.target.value)}
+				placeholder="Gemini에서 생성된 캐릭터 정보를 붙여넣기"
 				style={{ fontSize: 12, minHeight: 80, marginBottom: 8 }}
 			/>
 			<button
@@ -191,21 +218,55 @@ export function SaveResultBox({
 				className="btn-primary"
 				onClick={handleSave}
 				disabled={!value.trim()}
-				style={{
-					fontSize: 12,
-					padding: "7px 16px",
-					display: "flex",
-					alignItems: "center",
-					gap: 6,
-				}}
+				style={{ fontSize: 12, padding: "7px 16px", display: "flex", alignItems: "center", gap: 6 }}
 			>
-				{saved ? (
-					<>
-						<Check size={12} /> Saved!
-					</>
-				) : (
-					"저장"
-				)}
+				<SaveButton saved={saved} />
+			</button>
+		</div>
+	);
+}
+
+// ③-2 캐릭터 프롬프트 결과 저장
+export function SaveCharPromptBox({
+	novel,
+	charName,
+}: {
+	novel: Novel;
+	charName: string;
+}) {
+	const { updateCharacter } = useStore();
+	const [value, setValue] = useState("");
+	const [saved, setSaved] = useState(false);
+
+	const handleSave = () => {
+		if (!value.trim()) return;
+		const char = novel.characters.find((c) => c.name === charName);
+		if (char) updateCharacter(novel.id, char.id, { textPrompt: value.trim() });
+		setSaved(true);
+		setTimeout(() => {
+			setSaved(false);
+			setValue("");
+		}, 1500);
+	};
+
+	return (
+		<div style={saveBoxStyle}>
+			<div style={saveLabelStyle}>캐릭터 프롬프트 저장</div>
+			<textarea
+				className="input-field"
+				value={value}
+				onChange={(e) => setValue(e.target.value)}
+				placeholder="Gemini에서 생성된 캐릭터 프롬프트를 붙여넣기"
+				style={{ fontSize: 12, minHeight: 80, marginBottom: 8 }}
+			/>
+			<button
+				type="button"
+				className="btn-primary"
+				onClick={handleSave}
+				disabled={!value.trim()}
+				style={{ fontSize: 12, padding: "7px 16px", display: "flex", alignItems: "center", gap: 6 }}
+			>
+				<SaveButton saved={saved} />
 			</button>
 		</div>
 	);
