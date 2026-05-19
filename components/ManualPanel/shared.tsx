@@ -180,7 +180,7 @@ function SaveButton({ saved }: { saved: boolean }) {
 	);
 }
 
-// ② 구도 프롬프트 결과 저장
+// ② 구도 프롬프트 결과 일괄 저장
 export function SaveCompositionBox({
 	novel,
 	compPartId,
@@ -189,18 +189,28 @@ export function SaveCompositionBox({
 	compPartId: string;
 }) {
 	const { updateDQ } = useStore();
-	const [selectedDQId, setSelectedDQId] = useState("");
 	const [value, setValue] = useState("");
 	const [saved, setSaved] = useState(false);
 
 	const part = novel.parts.find((p) => p.id === compPartId);
 	if (!part || part.discussionQuestions.length === 0) return null;
 
-	const handleSave = () => {
-		if (!value.trim() || !selectedDQId) return;
-		updateDQ(novel.id, compPartId, selectedDQId, {
-			compositionPrompt: value.trim(),
-		});
+	// === 구분자로 자동 파싱
+	const parsed = value.trim()
+		? value.split(/\n*===\n*/).map((s) => s.trim()).filter(Boolean)
+		: [];
+
+	const dqs = part.discussionQuestions;
+	const countMatch = parsed.length === dqs.length;
+
+	const handleSaveAll = async () => {
+		for (let i = 0; i < dqs.length; i++) {
+			if (parsed[i]) {
+				await updateDQ(novel.id, compPartId, dqs[i].id, {
+					compositionPrompt: parsed[i],
+				});
+			}
+		}
 		setSaved(true);
 		setTimeout(() => {
 			setSaved(false);
@@ -210,36 +220,79 @@ export function SaveCompositionBox({
 
 	return (
 		<div style={saveBoxStyle}>
-			<div style={saveLabelStyle}>구도 프롬프트 저장</div>
-			<select
-				value={selectedDQId}
-				onChange={(e) => setSelectedDQId(e.target.value)}
-				className="input-field"
-				style={{ fontSize: 12, marginBottom: 8 }}
-			>
-				<option value="">— 저장할 DQ 선택 —</option>
-				{part.discussionQuestions.map((dq, i) => (
-					<option key={dq.id} value={dq.id}>
-						Q{i + 1}. {dq.text.slice(0, 50)}…
-					</option>
-				))}
-			</select>
+			<div style={saveLabelStyle}>구도 프롬프트 일괄 저장</div>
+			<p style={{ fontSize: 11, color: "var(--ink-soft)", margin: "0 0 10px", lineHeight: 1.6 }}>
+				Gemini 결과 전체를 붙여넣으면 <code>===</code> 구분자 기준으로 자동 분할해서 각 DQ에 저장합니다.
+			</p>
 			<textarea
 				className="input-field"
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
-				placeholder="Gemini에서 생성된 구도 프롬프트를 붙여넣기"
-				style={{ fontSize: 12, minHeight: 80, marginBottom: 8 }}
+				placeholder={`Gemini 결과 전체 붙여넣기\n(=== 구분선 포함)`}
+				style={{ fontSize: 12, minHeight: 120, marginBottom: 10 }}
 			/>
-			<button
-				type="button"
-				className="btn-primary"
-				onClick={handleSave}
-				disabled={!value.trim() || !selectedDQId}
-				style={{ fontSize: 12, padding: "7px 16px", display: "flex", alignItems: "center", gap: 6 }}
-			>
-				<SaveButton saved={saved} />
-			</button>
+
+			{parsed.length > 0 && (
+				<div style={{ marginBottom: 12 }}>
+					{!countMatch && (
+						<div style={{
+							fontSize: 11,
+							color: "var(--crimson)",
+							marginBottom: 8,
+							padding: "6px 10px",
+							background: "#fff5f5",
+							border: "1px solid #fcc",
+						}}>
+							⚠ 분할된 항목 {parsed.length}개 / DQ {dqs.length}개 — 수가 맞지 않아요
+						</div>
+					)}
+					<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+						{dqs.map((dq, i) => (
+							<div key={dq.id} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+								<div style={{
+									flexShrink: 0,
+									fontSize: 11,
+									fontWeight: 600,
+									color: parsed[i] ? "var(--sage)" : "var(--ink-soft)",
+									paddingTop: 5,
+									width: 28,
+								}}>
+									Q{i + 1}
+								</div>
+								<div style={{
+									flex: 1,
+									padding: "5px 8px",
+									fontSize: 11,
+									lineHeight: 1.5,
+									color: "var(--ink-soft)",
+									background: parsed[i] ? "rgba(74,103,65,0.06)" : "white",
+									border: "1px solid",
+									borderColor: parsed[i] ? "var(--sage)" : "var(--border)",
+									maxHeight: 56,
+									overflow: "hidden",
+								}}>
+									{parsed[i]
+										? parsed[i].slice(0, 100) + (parsed[i].length > 100 ? "…" : "")
+										: <span style={{ opacity: 0.4 }}>(매칭 없음)</span>
+									}
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
+			{parsed.length > 0 && (
+				<button
+					type="button"
+					className="btn-primary"
+					onClick={handleSaveAll}
+					disabled={!countMatch || saved}
+					style={{ fontSize: 12, padding: "7px 16px", display: "flex", alignItems: "center", gap: 6 }}
+				>
+					<SaveButton saved={saved} />
+				</button>
+			)}
 		</div>
 	);
 }
