@@ -54,6 +54,7 @@ export default function Home() {
               !isSetup &&
               TABS.map((t) => (
                 <button
+                  type="button"
                   key={t.id}
                   onClick={() => setTab(t.id)}
                   style={{
@@ -80,6 +81,7 @@ export default function Home() {
           </div>
 
           <button
+            type="button"
             onClick={() => setShowSettings(true)}
             style={{
               background: 'none',

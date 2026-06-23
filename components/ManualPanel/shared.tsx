@@ -91,6 +91,8 @@ export function PromptBox({
       </div>
 
       {copied && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss overlay, not a keyboard-operable widget
+        // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss overlay, not a keyboard-operable widget
         <div
           onClick={() => setCopied(false)}
           style={{
@@ -105,6 +107,8 @@ export function PromptBox({
             animation: 'fadeIn 0.2s ease',
           }}
         >
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: stops backdrop click from bubbling, not itself interactive */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: stops backdrop click from bubbling, not itself interactive */}
           <div
             onClick={(e) => e.stopPropagation()}
             style={{

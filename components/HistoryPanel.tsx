@@ -41,6 +41,7 @@ export default function HistoryPanel() {
           Archive
         </h2>
         <button
+          type="button"
           className="btn-ghost"
           onClick={clearHistory}
           style={{
@@ -64,6 +65,7 @@ export default function HistoryPanel() {
         {history.map((entry) => (
           <div key={entry.id} className="card" style={{ overflow: 'hidden' }}>
             {entry.imageBase64 && (
+              // biome-ignore lint/performance/noImgElement: dynamic base64 data URI, not eligible for next/image optimization
               <img
                 src={`data:${entry.imageMime || 'image/png'};base64,${entry.imageBase64}`}
                 alt={entry.label}
