@@ -1,6 +1,6 @@
 'use client';
 import { AlertCircle, CheckCircle, Loader, Play, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 
@@ -46,7 +46,6 @@ export default function SetupPanel({ novel }: Props) {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [error, setError] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const handleStyleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -163,6 +162,7 @@ export default function SetupPanel({ novel }: Props) {
           {/* Summary input */}
           <div className="card" style={{ padding: 24 }}>
             <label
+              htmlFor="novel-summary"
               style={{
                 fontSize: 11,
                 letterSpacing: '0.08em',
@@ -175,6 +175,7 @@ export default function SetupPanel({ novel }: Props) {
               Full Novel Summary *
             </label>
             <textarea
+              id="novel-summary"
               className="input-field"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
@@ -186,6 +187,7 @@ export default function SetupPanel({ novel }: Props) {
           {/* Style image upload */}
           <div className="card" style={{ padding: 24 }}>
             <label
+              htmlFor="style-image-input"
               style={{
                 fontSize: 11,
                 letterSpacing: '0.08em',
@@ -198,8 +200,8 @@ export default function SetupPanel({ novel }: Props) {
               Style Reference Image (화풍 참고)
             </label>
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-              <div
-                onClick={() => fileRef.current?.click()}
+              <label
+                htmlFor="style-image-input"
                 style={{
                   width: 120,
                   height: 120,
@@ -223,6 +225,7 @@ export default function SetupPanel({ novel }: Props) {
                 }
               >
                 {stylePreview ? (
+                  // biome-ignore lint/performance/noImgElement: dynamic data URI preview, not eligible for next/image optimization
                   <img
                     src={stylePreview}
                     alt="style ref"
@@ -249,9 +252,9 @@ export default function SetupPanel({ novel }: Props) {
                     </span>
                   </>
                 )}
-              </div>
+              </label>
               <input
-                ref={fileRef}
+                id="style-image-input"
                 type="file"
                 accept="image/*"
                 style={{ display: 'none' }}
@@ -272,6 +275,7 @@ export default function SetupPanel({ novel }: Props) {
                   images.
                 </p>
                 <label
+                  htmlFor="style-prompt"
                   style={{
                     fontSize: 11,
                     letterSpacing: '0.07em',
@@ -284,6 +288,7 @@ export default function SetupPanel({ novel }: Props) {
                   Style Prompt (optional, supplements the image)
                 </label>
                 <textarea
+                  id="style-prompt"
                   className="input-field"
                   value={stylePrompt}
                   onChange={(e) => setStylePrompt(e.target.value)}
@@ -312,6 +317,7 @@ export default function SetupPanel({ novel }: Props) {
           )}
 
           <button
+            type="button"
             className="btn-gold"
             onClick={handleRun}
             disabled={!summary.trim()}

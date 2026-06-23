@@ -1,0 +1,18 @@
+# 커밋 타입
+# ✨ feat     : 새로운 기능
+# 🐛 fix      : 버그 수정
+# 💄 style    : 스타일 변경 (기능 변경 없음)
+# ♻️ refactor : 리팩토링
+# 🔧 chore    : 빌드, 설정 변경
+# 📝 docs     : 문서 수정
+# ✅ test     : 테스트 추가/수정
+#
+# 형식:
+# {타입}: 제목 (영어)
+# - 세부 설명 (한국어)
+# - 세부 설명 (한국어)
+#
+# 예시:
+# ✨ feat: add github repository list
+# - GitHub API 연동하여 레포 목록 조회 기능 추가
+# - useRepositories 커스텀 훅 구현

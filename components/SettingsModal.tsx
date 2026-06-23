@@ -9,6 +9,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [show, setShow] = useState(false);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss overlay, not a keyboard-operable widget
+    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss overlay, not a keyboard-operable widget
     <div
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -39,7 +41,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           >
             Settings
           </h2>
-          <button type = "button"
+          <button
+            type="button"
             onClick={onClose}
             style={{
               background: 'none',
@@ -53,6 +56,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <label
+          htmlFor="gemini-api-key"
           style={{
             fontSize: 11,
             letterSpacing: '0.08em',
@@ -66,6 +70,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         </label>
         <div style={{ position: 'relative' }}>
           <input
+            id="gemini-api-key"
             className="input-field"
             type={show ? 'text' : 'password'}
             value={key}
@@ -73,7 +78,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             placeholder="AIza..."
             style={{ paddingRight: 40 }}
           />
-          <button type = "button"
+          <button
+            type="button"
             onClick={() => setShow(!show)}
             style={{
               position: 'absolute',
@@ -132,10 +138,11 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn-ghost" onClick={onClose} type = "button">
+          <button className="btn-ghost" onClick={onClose} type="button">
             Cancel
           </button>
-          <button type = "button"
+          <button
+            type="button"
             className="btn-primary"
             onClick={() => {
               setApiKey(key.trim());

@@ -1,11 +1,5 @@
 'use client';
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Trash2,
-} from 'lucide-react';
+import { BookOpen, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 
@@ -95,6 +89,7 @@ export default function Sidebar() {
             Projects
           </span>
           <button
+            type="button"
             onClick={() => setShowAdd(!showAdd)}
             style={{
               background: 'none',
@@ -116,10 +111,10 @@ export default function Sidebar() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-              autoFocus
               style={{ fontSize: 12, flex: 1 }}
             />
             <button
+              type="button"
               className="btn-primary"
               onClick={handleAdd}
               style={{ padding: '6px 10px', fontSize: 12 }}
@@ -130,9 +125,15 @@ export default function Sidebar() {
         )}
 
         {novels.map((novel) => (
+          // biome-ignore lint/a11y/useSemanticElements: contains a nested delete <button>, can't be a <button> itself
           <div
             key={novel.id}
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveNovel(novel.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setActiveNovel(novel.id);
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -179,6 +180,7 @@ export default function Sidebar() {
                 {novel.parts.length > 0 ? `${novel.parts.length}pts` : 'setup'}
               </span>
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteNovel(novel.id);

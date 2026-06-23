@@ -12,7 +12,7 @@ export default function FirebaseSyncProvider({
   useEffect(() => {
     startSync();
     return () => stopSync();
-  }, []);
+  }, [startSync, stopSync]);
 
   return <>{children}</>;
 }

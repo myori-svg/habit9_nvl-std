@@ -1,12 +1,5 @@
 'use client';
-import {
-  Check,
-  ChevronDown,
-  Download,
-  Image,
-  RefreshCw,
-  User,
-} from 'lucide-react';
+import { Check, Download, Image, RefreshCw, User } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import type { Character, Novel } from '@/types';
@@ -113,7 +106,7 @@ export default function WorkPanel({ novel }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Part selector */}
         <div className="card" style={{ padding: 16 }}>
-          <label
+          <span
             style={{
               fontSize: 10,
               letterSpacing: '0.1em',
@@ -124,10 +117,11 @@ export default function WorkPanel({ novel }: Props) {
             }}
           >
             Chapter / Part
-          </label>
+          </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {novel.parts.map((part) => (
               <button
+                type="button"
                 key={part.id}
                 onClick={() => {
                   setSelectedPartId(part.id);
@@ -159,7 +153,7 @@ export default function WorkPanel({ novel }: Props) {
         {/* DQ selector */}
         {selectedPart && (
           <div className="card" style={{ padding: 16 }}>
-            <label
+            <span
               style={{
                 fontSize: 10,
                 letterSpacing: '0.1em',
@@ -170,13 +164,16 @@ export default function WorkPanel({ novel }: Props) {
               }}
             >
               Discussion Question
-            </label>
+            </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {selectedPart.discussionQuestions.map((dq, i) => (
-                <div
+                <button
+                  type="button"
                   key={dq.id}
                   onClick={() => setSelectedDQId(dq.id)}
                   style={{
+                    width: '100%',
+                    textAlign: 'left',
                     padding: '10px 12px',
                     cursor: 'pointer',
                     border: '1px solid',
@@ -208,7 +205,7 @@ export default function WorkPanel({ novel }: Props) {
                   <span style={{ fontSize: 12, lineHeight: 1.4 }}>
                     {dq.text}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -217,7 +214,7 @@ export default function WorkPanel({ novel }: Props) {
         {/* Character selector */}
         {novel.characters.length > 0 && selectedDQ && (
           <div className="card" style={{ padding: 16 }}>
-            <label
+            <span
               style={{
                 fontSize: 10,
                 letterSpacing: '0.1em',
@@ -228,7 +225,7 @@ export default function WorkPanel({ novel }: Props) {
               }}
             >
               Characters in Scene
-            </label>
+            </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {novel.characters.map((char) => (
                 <CharacterRow
@@ -272,7 +269,7 @@ export default function WorkPanel({ novel }: Props) {
                   marginBottom: 10,
                 }}
               >
-                <label
+                <span
                   style={{
                     fontSize: 10,
                     letterSpacing: '0.1em',
@@ -281,7 +278,7 @@ export default function WorkPanel({ novel }: Props) {
                   }}
                 >
                   Scene Composition Prompt
-                </label>
+                </span>
               </div>
               <p
                 style={{
@@ -312,6 +309,7 @@ export default function WorkPanel({ novel }: Props) {
 
             {/* Generate button */}
             <button
+              type="button"
               className="btn-gold"
               onClick={generateScene}
               disabled={generating}
@@ -352,6 +350,7 @@ export default function WorkPanel({ novel }: Props) {
             {/* Generated image */}
             {selectedDQ.sceneImage && !generating && (
               <div className="card fade-up" style={{ overflow: 'hidden' }}>
+                {/* biome-ignore lint/performance/noImgElement: dynamic base64 data URI, not eligible for next/image optimization */}
                 <img
                   src={`data:${selectedDQ.sceneMime || 'image/png'};base64,${selectedDQ.sceneImage}`}
                   alt="Generated scene"
@@ -366,14 +365,16 @@ export default function WorkPanel({ novel }: Props) {
                   }}
                 >
                   <button
+                    type="button"
                     className="btn-ghost"
-                    onClick={() =>
+                    onClick={() => {
+                      if (!selectedDQ.sceneImage) return;
                       downloadImage(
-                        selectedDQ.sceneImage!,
+                        selectedDQ.sceneImage,
                         selectedDQ.sceneMime || 'image/png',
                         `scene-${selectedPart?.label}`
-                      )
-                    }
+                      );
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -405,9 +406,12 @@ function CharacterRow({
   onToggle: () => void;
 }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onToggle}
       style={{
+        width: '100%',
+        textAlign: 'left',
         display: 'flex',
         alignItems: 'center',
         gap: 10,
@@ -420,6 +424,7 @@ function CharacterRow({
       }}
     >
       {char.imageBase64 ? (
+        // biome-ignore lint/performance/noImgElement: dynamic base64 data URI, not eligible for next/image optimization
         <img
           src={`data:${char.imageMime || 'image/png'};base64,${char.imageBase64}`}
           alt={char.name}
@@ -452,6 +457,6 @@ function CharacterRow({
       {selected && (
         <Check size={12} style={{ color: 'var(--gold)', flexShrink: 0 }} />
       )}
-    </div>
+    </button>
   );
 }

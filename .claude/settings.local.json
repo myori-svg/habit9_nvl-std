@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd D:\\\\workspace\\\\vlsi\\\\news; Get-ChildItem -Recurse src | Where-Object { !$_.PSIsContainer } | Select-Object FullName)",
+      "PowerShell(code --version)",
+      "PowerShell(Get-Command code.cmd -ErrorAction SilentlyContinue)",
+      "PowerShell($paths = @\\(\"$env:LOCALAPPDATA\\\\Programs\\\\Microsoft VS Code\\\\bin\\\\code.cmd\", \"$env:ProgramFiles\\\\Microsoft VS Code\\\\bin\\\\code.cmd\"\\); foreach \\($p in $paths\\) { if \\(Test-Path $p\\) { Write-Output $p } })"
+    ]
+  }
+}

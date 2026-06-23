@@ -2,7 +2,7 @@
 import { Settings } from 'lucide-react';
 import { useState } from 'react';
 import HistoryPanel from '@/components/HistoryPanel';
-import ManualPanel from '@/components/ManualPanel';
+import ManualPanel from '@/components/ManualPanel/ManualPanel';
 import SettingsModal from '@/components/SettingsModal';
 import SetupPanel from '@/components/SetupPanel';
 import Sidebar from '@/components/Sidebar';
@@ -54,6 +54,7 @@ export default function Home() {
               !isSetup &&
               TABS.map((t) => (
                 <button
+                  type="button"
                   key={t.id}
                   onClick={() => setTab(t.id)}
                   style={{
@@ -80,6 +81,7 @@ export default function Home() {
           </div>
 
           <button
+            type="button"
             onClick={() => setShowSettings(true)}
             style={{
               background: 'none',

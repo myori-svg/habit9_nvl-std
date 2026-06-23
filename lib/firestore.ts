@@ -2,7 +2,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -17,7 +16,7 @@ import {
   ref,
   uploadString,
 } from 'firebase/storage';
-import { Character, DiscussionQuestion, type Novel, NovelPart } from '@/types';
+import type { Novel } from '@/types';
 import { db, storage } from './firebase';
 
 // ── Collections ──────────────────────────────────────────────────
