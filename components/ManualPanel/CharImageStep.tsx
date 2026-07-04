@@ -2,7 +2,11 @@
 import { Check, Sparkles, Upload, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { downloadBase64File } from '@/lib/download';
-import { buildCharImagePrompt, getStyleRef } from '@/lib/prompts';
+import {
+  buildCharImagePrompt,
+  DEFAULT_PROMPT_TEMPLATES,
+  getStyleRef,
+} from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Character, Novel } from '@/types';
 import { type AutoGenCharStatus, AutoGenStatusList, PromptBox } from './shared';
@@ -40,6 +44,7 @@ export default function CharImageStep({
     updateNovel,
     addStyleRefImage,
     removeStyleRefImage,
+    promptTemplates,
   } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const refImageRef = useRef<HTMLInputElement>(null);
@@ -118,12 +123,14 @@ export default function CharImageStep({
     if (char) generateImageForChar(char, '재생성 중…');
   };
 
+  const style = getStyleRef(novel.stylePrompt);
   const charImageTextPrompt =
     novel.characters.find((c) => c.name === charImageName)?.textPrompt ?? '';
   const charImagePrompt = buildCharImagePrompt(
-    getStyleRef(novel.stylePrompt),
+    style,
     charImageName,
-    charImageTextPrompt
+    charImageTextPrompt,
+    promptTemplates.charImage ?? DEFAULT_PROMPT_TEMPLATES.charImage
   );
 
   const handleImageUpload = () => {
@@ -437,7 +444,18 @@ export default function CharImageStep({
         )}
       </div>
 
-      <PromptBox prompt={charImagePrompt} label="Gemini에 붙여넣을 프롬프트" />
+      <PromptBox
+        prompt={charImagePrompt}
+        label="Gemini에 붙여넣을 프롬프트"
+        templateKey="charImage"
+        vars={{
+          style,
+          charImageName: charImageName || '(이름)',
+          charImageTextPrompt:
+            charImageTextPrompt ||
+            '(④ 단계에서 텍스트 프롬프트를 먼저 생성해주세요)',
+        }}
+      />
 
       {uploadError && (
         <div

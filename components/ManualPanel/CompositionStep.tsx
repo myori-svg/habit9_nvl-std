@@ -1,5 +1,9 @@
 'use client';
-import { buildCompositionPrompt } from '@/lib/prompts';
+import {
+  buildCompositionPrompt,
+  DEFAULT_PROMPT_TEMPLATES,
+} from '@/lib/prompts';
+import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 import { PromptBox, SaveCompositionBox } from './shared';
 
@@ -18,6 +22,7 @@ export default function CompositionStep({
   compCustomDQ,
   setCompCustomDQ,
 }: Props) {
+  const { promptTemplates } = useStore();
   const compPart = novel.parts.find((p) => p.id === compPartId);
   const questionItems = (() => {
     if (novel.parts.length > 0 && compPart) {
@@ -33,7 +38,10 @@ export default function CompositionStep({
     if (compCustomDQ) return compCustomDQ;
     return '(질문을 선택하거나 입력해주세요)';
   })();
-  const compositionPrompt = buildCompositionPrompt(questionItems);
+  const compositionPrompt = buildCompositionPrompt(
+    questionItems,
+    promptTemplates.composition ?? DEFAULT_PROMPT_TEMPLATES.composition
+  );
 
   return (
     <div>
@@ -64,6 +72,8 @@ export default function CompositionStep({
       <PromptBox
         prompt={compositionPrompt}
         label="Gemini에 붙여넣을 프롬프트"
+        templateKey="composition"
+        vars={{ questionItems }}
       />
       <SaveCompositionBox novel={novel} compPartId={compPartId} />
     </div>
