@@ -107,6 +107,7 @@ Return ONLY the composition prompt text. No preamble. English only.
           partsWithComposition.push({
             id: crypto.randomUUID(),
             label: part.label,
+            content: '',
             discussionQuestions: dqsWithComposition,
           });
         }

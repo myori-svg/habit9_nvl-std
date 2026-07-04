@@ -1,6 +1,12 @@
 'use client';
 import { Check } from 'lucide-react';
-import { buildScenePrompt, extractCharNames, getStyleRef } from '@/lib/prompts';
+import {
+  buildScenePrompt,
+  DEFAULT_PROMPT_TEMPLATES,
+  extractCharNames,
+  getStyleRef,
+} from '@/lib/prompts';
+import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 import { PromptBox } from './shared';
 
@@ -27,6 +33,7 @@ export default function SceneStep({
   sceneCharIds,
   setSceneCharIds,
 }: Props) {
+  const { promptTemplates } = useStore();
   const scenePart = novel.parts.find((p) => p.id === scenePartId);
   const selectedChars = novel.characters.filter((c) =>
     sceneCharIds.includes(c.id)
@@ -37,11 +44,14 @@ export default function SceneStep({
         `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ④ 단계에서 생성 필요)'}`
     )
     .join('\n\n');
+  const style = getStyleRef(novel.stylePrompt);
+  const hasStyleImage = (novel.styleRefImages?.length ?? 0) > 0;
   const scenePrompt = buildScenePrompt(
-    getStyleRef(novel.stylePrompt),
-    (novel.styleRefImages?.length ?? 0) > 0,
+    style,
+    hasStyleImage,
     sceneComposition,
-    charPromptsText
+    charPromptsText,
+    promptTemplates.scene ?? DEFAULT_PROMPT_TEMPLATES.scene
   );
 
   const handleDQChange = (dqId: string) => {
@@ -177,6 +187,16 @@ export default function SceneStep({
       <PromptBox
         prompt={scenePrompt}
         label="Gemini에 붙여넣을 최종 장면 생성 프롬프트"
+        templateKey="scene"
+        vars={{
+          style,
+          styleImageNote: hasStyleImage
+            ? ' (스타일 참고 이미지도 함께 제공)'
+            : '',
+          sceneComposition:
+            sceneComposition || '(구도 프롬프트를 입력하거나 DQ를 선택하세요)',
+          charPromptsText: charPromptsText || '(캐릭터를 선택하세요)',
+        }}
       />
     </div>
   );

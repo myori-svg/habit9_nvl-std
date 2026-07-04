@@ -8,11 +8,14 @@ import type {
 } from '@/types';
 import {
   deleteNovel as fbDeleteNovel,
+  savePromptTemplate as fbSavePromptTemplate,
   saveCharacterImage,
   saveNovel,
   saveSceneImage,
   subscribeNovels,
+  subscribePromptTemplates,
 } from './firestore';
+import type { PromptTemplateKey } from './prompts';
 
 interface AppStore {
   novels: Novel[];
@@ -42,6 +45,15 @@ interface AppStore {
     dqId: string,
     data: Partial<DiscussionQuestion>
   ) => Promise<void>;
+  setPartDQs: (
+    novelId: string,
+    partId: string,
+    questions: { text: string; compositionPrompt?: string }[]
+  ) => Promise<void>;
+  addChapterParts: (
+    novelId: string,
+    chapters: { label: string; content: string }[]
+  ) => Promise<void>;
   saveScene: (
     novelId: string,
     partId: string,
@@ -54,7 +66,14 @@ interface AppStore {
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void;
   clearHistory: () => void;
 
+  promptTemplates: Partial<Record<PromptTemplateKey, string>>;
+  savePromptTemplate: (
+    key: PromptTemplateKey,
+    template: string
+  ) => Promise<void>;
+
   unsubscribe: (() => void) | null;
+  promptUnsubscribe: (() => void) | null;
   startSync: () => void;
   stopSync: () => void;
 }
@@ -64,7 +83,6 @@ export const useStore = create<AppStore>()(
     (set, get) => ({
       novels: [],
       activeNovelId: null,
-      unsubscribe: null,
 
       setActiveNovel: (id) => set({ activeNovelId: id }),
 
@@ -175,6 +193,39 @@ export const useStore = create<AppStore>()(
         await saveNovel(updated);
       },
 
+      setPartDQs: async (novelId, partId, questions) => {
+        const novel = get().novels.find((n) => n.id === novelId);
+        if (!novel) return;
+        const updated = {
+          ...novel,
+          parts: novel.parts.map((p) =>
+            p.id !== partId
+              ? p
+              : {
+                  ...p,
+                  discussionQuestions: questions.map((q) => ({
+                    id: crypto.randomUUID(),
+                    text: q.text,
+                    compositionPrompt: q.compositionPrompt ?? '',
+                  })),
+                }
+          ),
+        };
+        await saveNovel(updated);
+      },
+
+      addChapterParts: async (novelId, chapters) => {
+        const novel = get().novels.find((n) => n.id === novelId);
+        if (!novel) return;
+        const newParts = chapters.map((c) => ({
+          id: crypto.randomUUID(),
+          label: c.label,
+          content: c.content,
+          discussionQuestions: [],
+        }));
+        await saveNovel({ ...novel, parts: [...novel.parts, ...newParts] });
+      },
+
       saveScene: async (novelId, partId, dqId, base64, mime) => {
         const novel = get().novels.find((n) => n.id === novelId);
         if (!novel) return '';
@@ -224,18 +275,35 @@ export const useStore = create<AppStore>()(
         })),
       clearHistory: () => set({ history: [] }),
 
+      promptTemplates: {},
+      savePromptTemplate: async (key, template) => {
+        await fbSavePromptTemplate(key, template);
+      },
+
+      unsubscribe: null,
+      promptUnsubscribe: null,
+
       startSync: () => {
-        const { unsubscribe: existing } = get();
+        const { unsubscribe: existing, promptUnsubscribe: existingPrompt } =
+          get();
         if (existing) existing();
+        if (existingPrompt) existingPrompt();
         const unsub = subscribeNovels((novels) => set({ novels }));
-        set({ unsubscribe: unsub });
+        const promptUnsub = subscribePromptTemplates((promptTemplates) =>
+          set({ promptTemplates })
+        );
+        set({ unsubscribe: unsub, promptUnsubscribe: promptUnsub });
       },
 
       stopSync: () => {
-        const { unsubscribe } = get();
+        const { unsubscribe, promptUnsubscribe } = get();
         if (unsubscribe) {
           unsubscribe();
           set({ unsubscribe: null });
+        }
+        if (promptUnsubscribe) {
+          promptUnsubscribe();
+          set({ promptUnsubscribe: null });
         }
       },
     }),

@@ -18,9 +18,11 @@ import {
 } from 'firebase/storage';
 import type { Novel } from '@/types';
 import { db, storage } from './firebase';
+import type { PromptTemplateKey } from './prompts';
 
 // ── Collections ──────────────────────────────────────────────────
 const NOVELS = 'novels';
+const PROMPT_TEMPLATES = 'promptTemplates';
 
 // ── Novel CRUD ───────────────────────────────────────────────────
 
@@ -151,4 +153,30 @@ export async function saveSceneImage(
   );
   await updateDoc(doc(db, NOVELS, novel.id), { parts: updatedParts });
   return url;
+}
+
+// ── Prompt Templates ─────────────────────────────────────────────
+
+export function subscribePromptTemplates(
+  cb: (templates: Partial<Record<PromptTemplateKey, string>>) => void
+): Unsubscribe {
+  return onSnapshot(collection(db, PROMPT_TEMPLATES), (snap) => {
+    const templates: Partial<Record<PromptTemplateKey, string>> = {};
+    for (const d of snap.docs) {
+      templates[d.id as PromptTemplateKey] = (
+        d.data() as { template: string }
+      ).template;
+    }
+    cb(templates);
+  });
+}
+
+export async function savePromptTemplate(
+  key: PromptTemplateKey,
+  template: string
+): Promise<void> {
+  await setDoc(doc(db, PROMPT_TEMPLATES, key), {
+    template,
+    updatedAt: new Date().toISOString(),
+  });
 }

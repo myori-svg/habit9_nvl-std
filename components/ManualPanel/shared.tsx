@@ -1,6 +1,7 @@
 'use client';
 import { Check, Copy, RefreshCw, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { type PromptTemplateKey, reverseTemplate } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 
@@ -138,19 +139,74 @@ function CopyButton({
   );
 }
 
+function SaveTemplateButton({
+  onSave,
+  saved,
+  disabled,
+}: {
+  onSave: () => void;
+  saved: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSave}
+      disabled={disabled}
+      className="btn-ghost"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 12,
+        padding: '6px 12px',
+      }}
+    >
+      {saved ? (
+        <>
+          <Check size={12} style={{ color: 'var(--sage)' }} /> Saved!
+        </>
+      ) : (
+        '템플릿으로 저장'
+      )}
+    </button>
+  );
+}
+
 export function PromptBox({
   prompt,
   label,
+  templateKey,
+  vars,
 }: {
   prompt: string;
   label?: string;
+  // 지정하면 편집한 프롬프트를 "템플릿으로 저장" 가능해짐
+  templateKey?: PromptTemplateKey;
+  vars?: Record<string, string>;
 }) {
+  const { savePromptTemplate } = useStore();
   const [copied, setCopied] = useState(false);
+  const [value, setValue] = useState(prompt);
+  const [saved, setSaved] = useState(false);
+
+  // 원본 prompt가 바뀌면 (다른 소설/캐릭터 선택 등) 편집 내용을 최신 값으로 리셋
+  useEffect(() => {
+    setValue(prompt);
+  }, [prompt]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(prompt);
+    navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateKey) return;
+    const template = reverseTemplate(value, vars ?? {});
+    await savePromptTemplate(templateKey, template);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -169,24 +225,41 @@ export function PromptBox({
         </div>
       )}
       <div style={{ position: 'relative' }}>
-        <pre
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="input-field"
           style={{
             background: 'var(--parchment)',
-            border: '1px solid var(--border)',
             padding: '14px 16px',
             fontSize: 12,
             lineHeight: 1.7,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             margin: 0,
-            maxHeight: 300,
-            overflow: 'auto',
+            height: 300,
+            width: '100%',
+            resize: 'vertical',
             fontFamily: 'DM Sans, sans-serif',
+            boxSizing: 'border-box',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            display: 'flex',
+            gap: 6,
           }}
         >
-          {prompt}
-        </pre>
-        <div style={{ position: 'absolute', top: 8, right: 8 }}>
+          {templateKey && (
+            <SaveTemplateButton
+              onSave={handleSaveTemplate}
+              saved={saved}
+              disabled={!value.trim()}
+            />
+          )}
           <CopyButton onCopy={handleCopy} copied={copied} />
         </div>
       </div>

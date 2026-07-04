@@ -1,7 +1,7 @@
 'use client';
 import { Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { buildCharPromptPrompt } from '@/lib/prompts';
+import { buildCharPromptPrompt, DEFAULT_PROMPT_TEMPLATES } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 import {
@@ -26,7 +26,7 @@ export default function CharPromptStep({
   charPromptInfo,
   setCharPromptInfo,
 }: Props) {
-  const { updateCharacter } = useStore();
+  const { updateCharacter, promptTemplates } = useStore();
   const [autoRunning, setAutoRunning] = useState(false);
   const [charStatus, setCharStatus] = useState<
     Record<string, AutoGenCharStatus>
@@ -34,7 +34,8 @@ export default function CharPromptStep({
 
   const charPromptPrompt = buildCharPromptPrompt(
     charPromptName,
-    charPromptInfo
+    charPromptInfo,
+    promptTemplates.charPrompt ?? DEFAULT_PROMPT_TEMPLATES.charPrompt
   );
 
   const pendingChars = novel.characters.filter((c) => !c.textPrompt);
@@ -183,7 +184,15 @@ export default function CharPromptStep({
         placeholder="캐릭터 정보 (③에서 Gemini가 생성한 결과 붙여넣기)"
         style={{ fontSize: 12, minHeight: 80, marginBottom: 12 }}
       />
-      <PromptBox prompt={charPromptPrompt} label="Gemini에 붙여넣을 프롬프트" />
+      <PromptBox
+        prompt={charPromptPrompt}
+        label="Gemini에 붙여넣을 프롬프트"
+        templateKey="charPrompt"
+        vars={{
+          charPromptName: charPromptName || '(이름)',
+          charPromptInfo: charPromptInfo || '(캐릭터 정보를 입력하세요)',
+        }}
+      />
       <SaveCharPromptBox novel={novel} charName={charPromptName} />
     </div>
   );
