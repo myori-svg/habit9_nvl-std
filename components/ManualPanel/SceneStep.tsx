@@ -39,7 +39,7 @@ export default function SceneStep({
     .join('\n\n');
   const scenePrompt = buildScenePrompt(
     getStyleRef(novel.stylePrompt),
-    !!novel.styleImageBase64,
+    (novel.styleRefImages?.length ?? 0) > 0,
     sceneComposition,
     charPromptsText
   );

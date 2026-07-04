@@ -15,14 +15,13 @@ import {
 } from './firestore';
 
 interface AppStore {
-  apiKey: string;
-  setApiKey: (key: string) => void;
-
   novels: Novel[];
   activeNovelId: string | null;
   setActiveNovel: (id: string) => void;
   addNovel: (novel: Novel) => Promise<void>;
   updateNovel: (id: string, data: Partial<Novel>) => Promise<void>;
+  addStyleRefImage: (novelId: string, base64: string, mime: string) => void;
+  removeStyleRefImage: (novelId: string, imageId: string) => void;
   deleteNovel: (id: string) => Promise<void>;
 
   updateCharacter: (
@@ -63,9 +62,6 @@ interface AppStore {
 export const useStore = create<AppStore>()(
   persist(
     (set, get) => ({
-      apiKey: '',
-      setApiKey: (key) => set({ apiKey: key }),
-
       novels: [],
       activeNovelId: null,
       unsubscribe: null,
@@ -82,6 +78,38 @@ export const useStore = create<AppStore>()(
         const novel = get().novels.find((n) => n.id === id);
         if (novel) await saveNovel({ ...novel, ...data });
       },
+
+      // styleRefImages는 Firestore에 저장되지 않는 in-memory 전용 필드라
+      // saveNovel을 거치지 않고 로컬 state만 직접 갱신한다 (그러지 않으면 다음
+      // onSnapshot에서 바로 사라짐)
+      addStyleRefImage: (novelId, base64, mime) =>
+        set((s) => ({
+          novels: s.novels.map((n) =>
+            n.id === novelId
+              ? {
+                  ...n,
+                  styleRefImages: [
+                    ...(n.styleRefImages ?? []),
+                    { id: crypto.randomUUID(), base64, mime },
+                  ],
+                }
+              : n
+          ),
+        })),
+
+      removeStyleRefImage: (novelId, imageId) =>
+        set((s) => ({
+          novels: s.novels.map((n) =>
+            n.id === novelId
+              ? {
+                  ...n,
+                  styleRefImages: (n.styleRefImages ?? []).filter(
+                    (img) => img.id !== imageId
+                  ),
+                }
+              : n
+          ),
+        })),
 
       deleteNovel: async (id) => {
         const fallbackId = get().novels.find((n) => n.id !== id)?.id ?? null;
@@ -214,13 +242,11 @@ export const useStore = create<AppStore>()(
     {
       name: 'novel-studio-v2',
       partialize: (state) => ({
-        apiKey: state.apiKey,
         activeNovelId: state.activeNovelId,
         history: state.history.map((h) => ({ ...h, imageBase64: undefined })),
         novels: state.novels.map((n) => ({
           ...n,
-          styleImageBase64: undefined,
-          styleImageMime: undefined,
+          styleRefImages: undefined,
           characters: n.characters.map((c) => ({
             ...c,
             imageBase64: undefined,

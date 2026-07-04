@@ -3,68 +3,39 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { styleRefImages, stylePrompt, compositionPrompt, characters } =
-      await req.json();
+    const { styleRefImages, stylePrompt, textPrompt } = await req.json();
     if (!process.env.GEMINI_API_KEY)
       return NextResponse.json(
         { error: 'GEMINI_API_KEY not configured on server' },
         { status: 500 }
+      );
+    if (!textPrompt)
+      return NextResponse.json(
+        { error: 'textPrompt required' },
+        { status: 400 }
       );
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const imageModel = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash-image',
       generationConfig: {
+        // @ts-expect-error responseModalities/imageConfig not yet in SDK types
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: { aspectRatio: '16:9' },
-      } as never,
+      },
     });
 
-    const styleRef =
-      stylePrompt ||
-      'A heartwarming watercolor and colored pencil storybook illustration. Muted pastels, earthy browns, delicate hand-drawn outlines, decorative vine border.';
-    const charPromptsText = characters
-      .map(
-        (c: { name: string; textPrompt: string }) =>
-          `{${c.name}}: ${c.textPrompt}`
-      )
-      .join('\n\n');
-
-    const fullPrompt = `Generate a storybook illustration following these rules:
-- Style: match <image style> and the first reference image
-- Characters: use <character prompts> and reference images for each character
-- Composition: follow <composition> exactly
-- Dynamic facial expressions
-- 16:9 ratio
-
-<image style>
-${styleRef}
-
-<composition>
-${compositionPrompt}
-
-<character prompts>
-${charPromptsText}`;
+    const refImages: { base64: string; mime: string }[] = styleRefImages ?? [];
 
     const parts: Array<
       { text: string } | { inlineData: { data: string; mimeType: string } }
     > = [];
-    for (const img of (styleRefImages ?? []) as {
-      base64: string;
-      mime: string;
-    }[]) {
+    for (const img of refImages) {
       parts.push({ inlineData: { data: img.base64, mimeType: img.mime } });
     }
-    for (const c of characters) {
-      if (c.imageBase64)
-        parts.push({
-          inlineData: {
-            data: c.imageBase64,
-            mimeType: c.imageMime || 'image/png',
-          },
-        });
-    }
-    parts.push({ text: fullPrompt });
+    parts.push({
+      text: `${stylePrompt ? `Style: ${stylePrompt}${refImages.length > 0 ? ' (match the style of the reference images provided)' : ''}\n\n` : ''}${textPrompt}`,
+    });
 
     const result = await imageModel.generateContent(parts as never);
     for (const part of result.response.candidates?.[0]?.content?.parts ?? []) {

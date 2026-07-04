@@ -1,8 +1,109 @@
 'use client';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, RefreshCw, X } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
+
+// ── Auto-generation per-character status list ──────────────────────
+export type AutoGenState = 'pending' | 'running' | 'done' | 'error';
+export interface AutoGenCharStatus {
+  state: AutoGenState;
+  message?: string;
+}
+
+export function AutoGenStatusList({
+  chars,
+  status,
+  onRegenerate,
+}: {
+  chars: { id: string; name: string }[];
+  status: Record<string, AutoGenCharStatus>;
+  onRegenerate?: (id: string) => void;
+}) {
+  if (chars.length === 0) return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        marginTop: 10,
+      }}
+    >
+      {chars.map((c) => {
+        const s = status[c.id];
+        if (!s) return null;
+        return (
+          <div
+            key={c.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 12,
+              padding: '5px 8px',
+              background: s.state === 'error' ? '#fff5f5' : 'white',
+              border: '1px solid',
+              borderColor: s.state === 'error' ? '#fcc' : 'var(--border)',
+            }}
+          >
+            <span
+              style={{
+                width: 12,
+                flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              {s.state === 'done' ? (
+                <Check size={12} style={{ color: 'var(--sage)' }} />
+              ) : s.state === 'error' ? (
+                <X size={12} style={{ color: 'var(--crimson)' }} />
+              ) : s.state === 'running' ? (
+                <RefreshCw
+                  size={12}
+                  style={{
+                    color: 'var(--gold)',
+                    animation: 'spin 1s linear infinite',
+                  }}
+                />
+              ) : null}
+            </span>
+            <span style={{ fontWeight: 500, flexShrink: 0 }}>{c.name}</span>
+            <span
+              style={{
+                color:
+                  s.state === 'error' ? 'var(--crimson)' : 'var(--ink-soft)',
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {s.message ??
+                (s.state === 'done'
+                  ? '생성 완료!'
+                  : s.state === 'running'
+                    ? '생성 중…'
+                    : '대기 중')}
+            </span>
+            {s.state === 'done' && onRegenerate && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => onRegenerate(c.id)}
+                style={{ fontSize: 11, padding: '3px 8px', flexShrink: 0 }}
+              >
+                재생성
+              </button>
+            )}
+          </div>
+        );
+      })}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 function CopyButton({
   onCopy,

@@ -54,8 +54,7 @@ function stripUndefined(obj: unknown): unknown {
 export async function saveNovel(novel: Novel): Promise<void> {
   const toSave = stripUndefined({
     ...novel,
-    styleImageBase64: undefined,
-    styleImageMime: undefined,
+    styleRefImages: undefined,
     characters: novel.characters.map((c) => ({
       ...c,
       imageBase64: undefined,
