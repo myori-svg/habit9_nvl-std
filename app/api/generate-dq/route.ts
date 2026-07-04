@@ -1,0 +1,74 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { type NextRequest, NextResponse } from 'next/server';
+import {
+  buildCompositionPrompt,
+  buildDQPrompt,
+  DEFAULT_PROMPT_TEMPLATES,
+} from '@/lib/prompts';
+
+export async function POST(req: NextRequest) {
+  const {
+    novelTitle,
+    partContent,
+    characterNames,
+    dqTemplate,
+    compositionTemplate,
+  } = await req.json();
+  if (!process.env.GEMINI_API_KEY)
+    return NextResponse.json(
+      { error: 'GEMINI_API_KEY not configured on server' },
+      { status: 500 }
+    );
+  if (!partContent)
+    return NextResponse.json(
+      { error: 'partContent required' },
+      { status: 400 }
+    );
+
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const textModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    // ── Step 1: Discussion Questions ──────────────────────────────
+    const dqPrompt = buildDQPrompt(
+      novelTitle,
+      partContent,
+      dqTemplate ?? DEFAULT_PROMPT_TEMPLATES.dq
+    );
+    const dqResult = await textModel.generateContent(`${dqPrompt}
+
+Return ONLY a JSON array of question strings, no markdown fences:
+["Question 1", "Question 2"]`);
+    const dqText = dqResult.response
+      .text()
+      .trim()
+      .replace(/```json|```/g, '')
+      .trim();
+    const questions: string[] = JSON.parse(dqText);
+
+    // ── Step 2: Composition prompt per DQ (기존 등록된 캐릭터만 사용) ──
+    const characterNote: string =
+      Array.isArray(characterNames) && characterNames.length > 0
+        ? `\n\n등장 가능한 캐릭터는 다음으로 한정합니다: ${characterNames.join(', ')}. 이 목록에 없는 새 캐릭터를 만들지 마세요.`
+        : '';
+
+    const discussionQuestions = [];
+    for (const q of questions) {
+      const questionItems = `${q}`;
+      const compositionPrompt = buildCompositionPrompt(
+        questionItems + characterNote,
+        compositionTemplate ?? DEFAULT_PROMPT_TEMPLATES.composition
+      );
+      const compResult = await textModel.generateContent(compositionPrompt);
+      discussionQuestions.push({
+        id: crypto.randomUUID(),
+        text: q,
+        compositionPrompt: compResult.response.text().trim(),
+      });
+    }
+
+    return NextResponse.json({ discussionQuestions });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
