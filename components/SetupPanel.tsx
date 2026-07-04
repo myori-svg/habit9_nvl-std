@@ -37,7 +37,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 export default function SetupPanel({ novel }: Props) {
-  const { apiKey, updateNovel } = useStore();
+  const { updateNovel, addStyleRefImage } = useStore();
   const [summary, setSummary] = useState(novel.summary || '');
   const [stylePrompt, setStylePrompt] = useState(novel.stylePrompt || '');
   const [styleImageBase64, setStyleImageBase64] = useState<string>('');
@@ -64,34 +64,29 @@ export default function SetupPanel({ novel }: Props) {
 
   const handleRun = async () => {
     if (!summary.trim()) return;
-    if (!apiKey) {
-      setError('API key not set — go to Settings');
-      return;
-    }
 
     setRunning(true);
     setError('');
     setProgress({ step: 'generating-dq', message: 'Starting…' });
 
     // Save summary to novel
-    updateNovel(novel.id, {
-      summary,
-      stylePrompt,
-      styleImageBase64,
-      styleImageMime,
-    });
+    updateNovel(novel.id, { summary, stylePrompt });
+    if (styleImageBase64 && styleImageMime) {
+      addStyleRefImage(novel.id, styleImageBase64, styleImageMime);
+    }
 
     try {
       const res = await fetch('/api/setup-novel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey,
           title: novel.title,
           summary,
           stylePrompt,
-          styleImageBase64,
-          styleImageMime,
+          styleRefImages:
+            styleImageBase64 && styleImageMime
+              ? [{ base64: styleImageBase64, mime: styleImageMime }]
+              : [],
         }),
       });
 

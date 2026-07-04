@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function WorkPanel({ novel }: Props) {
-  const { apiKey, updateDQ, addHistory } = useStore();
+  const { updateDQ, addHistory } = useStore();
   const [selectedPartId, setSelectedPartId] = useState<string>(
     novel.parts[0]?.id ?? ''
   );
@@ -31,10 +31,6 @@ export default function WorkPanel({ novel }: Props) {
 
   const generateScene = async () => {
     if (!selectedDQ) return;
-    if (!apiKey) {
-      setError('API key not set');
-      return;
-    }
     setGenerating(true);
     setError('');
 
@@ -46,9 +42,7 @@ export default function WorkPanel({ novel }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey,
-          styleImageBase64: novel.styleImageBase64,
-          styleImageMime: novel.styleImageMime,
+          styleRefImages: novel.styleRefImages,
           stylePrompt: novel.stylePrompt,
           compositionPrompt: selectedDQ.compositionPrompt,
           characters: selectedChars.map((c) => ({

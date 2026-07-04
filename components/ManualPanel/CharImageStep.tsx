@@ -1,10 +1,11 @@
 'use client';
-import { Check } from 'lucide-react';
+import { Check, Sparkles, Upload, X } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { downloadBase64File } from '@/lib/download';
 import { buildCharImagePrompt, getStyleRef } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
-import type { Novel } from '@/types';
-import { PromptBox } from './shared';
+import type { Character, Novel } from '@/types';
+import { type AutoGenCharStatus, AutoGenStatusList, PromptBox } from './shared';
 
 interface Props {
   novel: Novel;
@@ -33,9 +34,89 @@ export default function CharImageStep({
   uploadDone,
   setUploadDone,
 }: Props) {
-  const { saveCharImage } = useStore();
+  const {
+    saveCharImage,
+    updateCharacter,
+    updateNovel,
+    addStyleRefImage,
+    removeStyleRefImage,
+  } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
+  const refImageRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState('');
+  const [stylePromptInput, setStylePromptInput] = useState(
+    novel.stylePrompt || ''
+  );
+
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [charStatus, setCharStatus] = useState<
+    Record<string, AutoGenCharStatus>
+  >({});
+
+  const pendingChars = novel.characters.filter((c) => !c.imageGenerated);
+
+  const handleRefImageUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const [header, base64] = result.split(',');
+      const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+      addStyleRefImage(novel.id, base64, mime);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const generateImageForChar = async (char: Character, label: string) => {
+    setCharStatus((prev) => ({
+      ...prev,
+      [char.id]: { state: 'running', message: `${char.name} ${label}` },
+    }));
+    try {
+      const res = await fetch('/api/generate-character-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          styleRefImages: novel.styleRefImages,
+          stylePrompt: novel.stylePrompt,
+          textPrompt: char.textPrompt,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      downloadBase64File(data.imageBase64, data.imageMime, char.name);
+      await updateCharacter(novel.id, char.id, {
+        imageBase64: data.imageBase64,
+        imageMime: data.imageMime,
+        imageGenerated: true,
+      });
+      setCharStatus((prev) => ({
+        ...prev,
+        [char.id]: { state: 'done', message: '생성 완료!' },
+      }));
+    } catch (e) {
+      setCharStatus((prev) => ({
+        ...prev,
+        [char.id]: { state: 'error', message: String(e) },
+      }));
+    }
+  };
+
+  const handleAutoGenerate = async () => {
+    setAutoRunning(true);
+    setCharStatus(
+      Object.fromEntries(pendingChars.map((c) => [c.id, { state: 'pending' }]))
+    );
+    for (const char of pendingChars) {
+      await generateImageForChar(char, '생성 중…');
+    }
+    setAutoRunning(false);
+  };
+
+  const handleRegenerate = (charId: string) => {
+    const char = novel.characters.find((c) => c.id === charId);
+    if (char) generateImageForChar(char, '재생성 중…');
+  };
 
   const charImageTextPrompt =
     novel.characters.find((c) => c.name === charImageName)?.textPrompt ?? '';
@@ -80,6 +161,196 @@ export default function CharImageStep({
     <div>
       <div
         style={{
+          border: '1px solid var(--border)',
+          padding: '14px 16px',
+          marginBottom: 16,
+          background: 'var(--cream)',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--ink-soft)',
+            marginBottom: 6,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+          }}
+        >
+          스타일 프롬프트 (텍스트, ref 이미지와 함께 전달됨)
+        </div>
+        <textarea
+          className="input-field"
+          value={stylePromptInput}
+          onChange={(e) => setStylePromptInput(e.target.value)}
+          onBlur={() => {
+            if (stylePromptInput !== (novel.stylePrompt || '')) {
+              updateNovel(novel.id, { stylePrompt: stylePromptInput });
+            }
+          }}
+          placeholder="e.g. cozy watercolor storybook illustration, soft pastel colors, hand-drawn outlines…"
+          style={{ fontSize: 12, minHeight: 56, marginBottom: 14 }}
+        />
+
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--ink-soft)',
+            marginBottom: 10,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+          }}
+        >
+          스타일 참고 이미지 (여러 장 추가 가능 — 자동 생성 품질에 영향)
+        </div>
+        <input
+          ref={refImageRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleRefImageUpload(file);
+            e.target.value = '';
+          }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
+          {(novel.styleRefImages ?? []).map((img, i) => (
+            <div
+              key={img.id}
+              style={{
+                position: 'relative',
+                width: 90,
+                height: 90,
+                border: '1px solid var(--border)',
+                background: 'white',
+                flexShrink: 0,
+              }}
+            >
+              {/* biome-ignore lint/performance/noImgElement: preview only */}
+              <img
+                src={`data:${img.mime};base64,${img.base64}`}
+                alt={`style ref ${i + 1}`}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => removeStyleRefImage(novel.id, img.id)}
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 2,
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: 'rgba(26,20,16,0.7)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                <X size={11} color="white" />
+              </button>
+            </div>
+          ))}
+
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: internal tool */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: internal tool */}
+          <div
+            onClick={() => refImageRef.current?.click()}
+            style={{
+              width: 90,
+              height: 90,
+              border: '2px dashed var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'border-color 0.2s',
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.borderColor = 'var(--gold)')
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.borderColor = 'var(--border)')
+            }
+          >
+            <Upload size={16} style={{ color: 'var(--ink-soft)' }} />
+          </div>
+        </div>
+      </div>
+
+      {novel.characters.length > 0 && (
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            padding: '14px 16px',
+            marginBottom: 20,
+            background: 'var(--cream)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--ink-soft)',
+              marginBottom: 10,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+            }}
+          >
+            전체 캐릭터 자동 생성 ({pendingChars.length}명 남음)
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleAutoGenerate}
+            disabled={autoRunning || pendingChars.length === 0}
+            style={{
+              fontSize: 12,
+              padding: '7px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Sparkles size={12} />
+            {autoRunning
+              ? '생성 중…'
+              : pendingChars.length === 0
+                ? '모두 생성됨'
+                : '자동 생성 + 다운로드'}
+          </button>
+          <AutoGenStatusList
+            chars={novel.characters}
+            status={Object.fromEntries(
+              novel.characters.map((c) => [
+                c.id,
+                charStatus[c.id] ??
+                  (c.imageGenerated
+                    ? { state: 'done', message: '생성 완료!' }
+                    : { state: 'pending' }),
+              ])
+            )}
+            onRegenerate={handleRegenerate}
+          />
+        </div>
+      )}
+
+      <div
+        style={{
           fontSize: 11,
           color: 'var(--ink-soft)',
           marginBottom: 8,
@@ -98,7 +369,7 @@ export default function CharImageStep({
         >
           {novel.characters.map((c) => (
             <option key={c.id} value={c.name}>
-              {c.name} {c.imageUrl ? '✓' : ''}
+              {c.name} {c.imageGenerated || c.imageUrl ? '✓' : ''}
             </option>
           ))}
         </select>

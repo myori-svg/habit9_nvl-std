@@ -1,13 +1,7 @@
 'use client';
-import { ExternalLink, Eye, EyeOff, X } from 'lucide-react';
-import { useState } from 'react';
-import { useStore } from '@/lib/store';
+import { X } from 'lucide-react';
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
-  const { apiKey, setApiKey } = useStore();
-  const [key, setKey] = useState(apiKey);
-  const [show, setShow] = useState(false);
-
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss overlay, not a keyboard-operable widget
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss overlay, not a keyboard-operable widget
@@ -55,70 +49,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <label
-          htmlFor="gemini-api-key"
-          style={{
-            fontSize: 11,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--ink-soft)',
-            display: 'block',
-            marginBottom: 6,
-          }}
-        >
-          Gemini API Key
-        </label>
-        <div style={{ position: 'relative' }}>
-          <input
-            id="gemini-api-key"
-            className="input-field"
-            type={show ? 'text' : 'password'}
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            placeholder="AIza..."
-            style={{ paddingRight: 40 }}
-          />
-          <button
-            type="button"
-            onClick={() => setShow(!show)}
-            style={{
-              position: 'absolute',
-              right: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--ink-soft)',
-            }}
-          >
-            {show ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-        </div>
-        <p
-          style={{
-            fontSize: 11,
-            color: 'var(--ink-soft)',
-            margin: '6px 0 16px',
-            opacity: 0.6,
-          }}
-        >
-          Stored locally in your browser only.{' '}
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener"
-            style={{
-              color: 'var(--gold-dim)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 3,
-            }}
-          >
-            Get API key <ExternalLink size={10} />
-          </a>
-        </p>
-
         <div
           style={{
             padding: '12px 14px',
@@ -131,25 +61,15 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           }}
         >
           <strong>Models:</strong>
-          <br />• Text: <code>gemini-2.5-flash-preview-05-20</code>
-          <br />• Image: <code>gemini-2.0-flash-preview-image-generation</code>
+          <br />• Text: <code>gemini-2.5-flash</code>
+          <br />• Image: <code>gemini-2.5-flash-image</code>
           <br />
           <strong>Est. cost:</strong> ~$8–10/month for ~60 scene images
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn-ghost" onClick={onClose} type="button">
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => {
-              setApiKey(key.trim());
-              onClose();
-            }}
-          >
-            Save
+          <button className="btn-primary" onClick={onClose} type="button">
+            Close
           </button>
         </div>
       </div>

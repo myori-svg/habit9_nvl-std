@@ -87,7 +87,6 @@ export function buildCharInfoPrompt(novelTitle: string, name: string): string {
 }
 
 export function buildCharPromptPrompt(
-  style: string,
   charPromptName: string,
   charPromptInfo: string
 ): string {
@@ -95,10 +94,7 @@ export function buildCharPromptPrompt(
 - Full-body storybook illustration
 - 외형, 의상, 성격이 드러나는 표정과 포즈 묘사
 - 성격 정보를 표정에 반영할 것
-- 아래 스타일을 따를 것
-
-<image style>
-${style}
+- 화풍/스타일은 언급하지 말 것 (이미지 생성 단계에서 별도로 적용됨)
 
 <character info>
 캐릭터명: ${charPromptName || '(이름)'}

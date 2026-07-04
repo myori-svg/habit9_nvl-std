@@ -1,10 +1,14 @@
+export interface StyleRefImage {
+  id: string;
+  base64: string;
+  mime: string;
+}
+
 export interface Novel {
   id: string;
   title: string;
   summary: string;
-  styleImageBase64?: string;
-  styleImageMime?: string;
-  styleImageUrl?: string; // Firebase Storage URL
+  styleRefImages?: StyleRefImage[]; // in-memory only, multiple ref images for style consistency
   stylePrompt: string;
   characters: Character[];
   parts: NovelPart[];
@@ -19,6 +23,7 @@ export interface Character {
   imageBase64?: string; // in-memory only
   imageMime?: string;
   imageUrl?: string; // Firebase Storage URL (persistent)
+  imageGenerated?: boolean; // Auto pipeline: image already generated, skip regeneration
   createdAt: string;
 }
 

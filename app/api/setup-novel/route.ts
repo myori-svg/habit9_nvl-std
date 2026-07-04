@@ -2,19 +2,16 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { type NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  const {
-    apiKey,
-    title,
-    summary,
-    stylePrompt,
-    styleImageBase64,
-    styleImageMime,
-  } = await req.json();
-  if (!apiKey)
-    return NextResponse.json({ error: 'API key required' }, { status: 400 });
+  const { title, summary, stylePrompt, styleRefImages } = await req.json();
+  const refImages: { base64: string; mime: string }[] = styleRefImages ?? [];
+  if (!process.env.GEMINI_API_KEY)
+    return NextResponse.json(
+      { error: 'GEMINI_API_KEY not configured on server' },
+      { status: 500 }
+    );
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const textModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const textModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -189,9 +186,9 @@ Be specific. Under 150 words.
             | { text: string }
             | { inlineData: { data: string; mimeType: string } }
           > = [];
-          if (styleImageBase64 && styleImageMime) {
+          for (const img of refImages) {
             promptParts.push({
-              inlineData: { data: styleImageBase64, mimeType: styleImageMime },
+              inlineData: { data: img.base64, mimeType: img.mime },
             });
           }
           promptParts.push({
@@ -204,7 +201,7 @@ Requirements:
 - Full-body storybook illustration
 - Describe appearance, clothing, expression reflecting personality
 - Style: ${styleRef}
-${styleImageBase64 ? '- Match the style of the reference image provided' : ''}
+${refImages.length > 0 ? '- Match the style of the reference images provided' : ''}
 
 Return ONLY the prompt. English only.`,
           });
@@ -227,9 +224,12 @@ Return ONLY the prompt. English only.`,
         });
 
         const imageModel = genAI.getGenerativeModel({
-          model: 'gemini-2.0-flash-preview-image-generation',
-          // @ts-expect-error
-          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+          model: 'gemini-2.5-flash-image',
+          generationConfig: {
+            // @ts-expect-error responseModalities/imageConfig not yet in SDK types
+            responseModalities: ['TEXT', 'IMAGE'],
+            imageConfig: { aspectRatio: '16:9' },
+          },
         });
 
         const finalCharacters = [];
@@ -247,12 +247,9 @@ Return ONLY the prompt. English only.`,
               | { text: string }
               | { inlineData: { data: string; mimeType: string } }
             > = [];
-            if (styleImageBase64 && styleImageMime) {
+            for (const img of refImages) {
               imgParts.push({
-                inlineData: {
-                  data: styleImageBase64,
-                  mimeType: styleImageMime,
-                },
+                inlineData: { data: img.base64, mimeType: img.mime },
               });
             }
             imgParts.push({ text: char.textPrompt });
