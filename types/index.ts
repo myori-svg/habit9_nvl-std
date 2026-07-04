@@ -30,6 +30,7 @@ export interface Character {
 export interface NovelPart {
   id: string;
   label: string;
+  content: string; // 챕터 원문 (파일 업로드 파싱 결과)
   discussionQuestions: DiscussionQuestion[];
 }
 

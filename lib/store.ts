@@ -45,6 +45,15 @@ interface AppStore {
     dqId: string,
     data: Partial<DiscussionQuestion>
   ) => Promise<void>;
+  setPartDQs: (
+    novelId: string,
+    partId: string,
+    questions: { text: string; compositionPrompt?: string }[]
+  ) => Promise<void>;
+  addChapterParts: (
+    novelId: string,
+    chapters: { label: string; content: string }[]
+  ) => Promise<void>;
   saveScene: (
     novelId: string,
     partId: string,
@@ -182,6 +191,39 @@ export const useStore = create<AppStore>()(
           ),
         };
         await saveNovel(updated);
+      },
+
+      setPartDQs: async (novelId, partId, questions) => {
+        const novel = get().novels.find((n) => n.id === novelId);
+        if (!novel) return;
+        const updated = {
+          ...novel,
+          parts: novel.parts.map((p) =>
+            p.id !== partId
+              ? p
+              : {
+                  ...p,
+                  discussionQuestions: questions.map((q) => ({
+                    id: crypto.randomUUID(),
+                    text: q.text,
+                    compositionPrompt: q.compositionPrompt ?? '',
+                  })),
+                }
+          ),
+        };
+        await saveNovel(updated);
+      },
+
+      addChapterParts: async (novelId, chapters) => {
+        const novel = get().novels.find((n) => n.id === novelId);
+        if (!novel) return;
+        const newParts = chapters.map((c) => ({
+          id: crypto.randomUUID(),
+          label: c.label,
+          content: c.content,
+          discussionQuestions: [],
+        }));
+        await saveNovel({ ...novel, parts: [...novel.parts, ...newParts] });
       },
 
       saveScene: async (novelId, partId, dqId, base64, mime) => {
