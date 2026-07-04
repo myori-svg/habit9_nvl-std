@@ -47,17 +47,12 @@ Return ONLY a JSON array of question strings, no markdown fences:
     const questions: string[] = JSON.parse(dqText);
 
     // ── Step 2: Composition prompt per DQ (기존 등록된 캐릭터만 사용) ──
-    const characterNote: string =
-      Array.isArray(characterNames) && characterNames.length > 0
-        ? `\n\n등장 가능한 캐릭터는 다음으로 한정합니다: ${characterNames.join(', ')}. 이 목록에 없는 새 캐릭터를 만들지 마세요.`
-        : '';
-
     const discussionQuestions = [];
     for (const q of questions) {
-      const questionItems = `${q}`;
       const compositionPrompt = buildCompositionPrompt(
-        questionItems + characterNote,
-        compositionTemplate ?? DEFAULT_PROMPT_TEMPLATES.composition
+        q,
+        compositionTemplate ?? DEFAULT_PROMPT_TEMPLATES.composition,
+        characterNames
       );
       const compResult = await textModel.generateContent(compositionPrompt);
       discussionQuestions.push({
