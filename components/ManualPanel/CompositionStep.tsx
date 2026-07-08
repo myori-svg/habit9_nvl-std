@@ -1,5 +1,6 @@
 'use client';
 import {
+  buildCharacterNote,
   buildCompositionPrompt,
   DEFAULT_PROMPT_TEMPLATES,
 } from '@/lib/prompts';
@@ -38,10 +39,13 @@ export default function CompositionStep({
     if (compCustomDQ) return compCustomDQ;
     return '(질문을 선택하거나 입력해주세요)';
   })();
+  const characterNames = novel.characters.map((c) => c.name);
   const compositionPrompt = buildCompositionPrompt(
     questionItems,
-    promptTemplates.composition ?? DEFAULT_PROMPT_TEMPLATES.composition
+    promptTemplates.composition ?? DEFAULT_PROMPT_TEMPLATES.composition,
+    characterNames
   );
+  const characterNote = buildCharacterNote(characterNames);
 
   return (
     <div>
@@ -73,7 +77,7 @@ export default function CompositionStep({
         prompt={compositionPrompt}
         label="Gemini에 붙여넣을 프롬프트"
         templateKey="composition"
-        vars={{ questionItems }}
+        vars={{ questionItems, characterNote }}
       />
       <SaveCompositionBox novel={novel} compPartId={compPartId} />
     </div>

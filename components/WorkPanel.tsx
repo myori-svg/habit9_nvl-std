@@ -1,5 +1,12 @@
 'use client';
-import { Check, Download, Image, RefreshCw, User } from 'lucide-react';
+import {
+  Check,
+  Download,
+  Image,
+  RefreshCw,
+  Sparkles,
+  User,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import type { Character, Novel } from '@/types';
@@ -9,19 +16,50 @@ interface Props {
 }
 
 export default function WorkPanel({ novel }: Props) {
-  const { updateDQ, addHistory } = useStore();
+  const { updateDQ, addHistory, promptTemplates, setPartDQs } = useStore();
   const [selectedPartId, setSelectedPartId] = useState<string>(
     novel.parts[0]?.id ?? ''
   );
   const [selectedDQId, setSelectedDQId] = useState<string>('');
   const [selectedCharIds, setSelectedCharIds] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [generatingDQ, setGeneratingDQ] = useState(false);
   const [error, setError] = useState('');
+  const [dqError, setDqError] = useState('');
 
   const selectedPart = novel.parts.find((p) => p.id === selectedPartId);
   const selectedDQ = selectedPart?.discussionQuestions.find(
     (dq) => dq.id === selectedDQId
   );
+
+  const generateDQ = async () => {
+    if (!selectedPart) return;
+    setGeneratingDQ(true);
+    setDqError('');
+
+    try {
+      const res = await fetch('/api/generate-dq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          novelTitle: novel.title,
+          partContent: selectedPart.content,
+          characterNames: novel.characters.map((c) => c.name),
+          dqTemplate: promptTemplates.dq,
+          compositionTemplate: promptTemplates.composition,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      await setPartDQs(novel.id, selectedPart.id, data.discussionQuestions);
+    } catch (e) {
+      setDqError(String(e));
+    } finally {
+      setGeneratingDQ(false);
+    }
+  };
 
   const toggleChar = (id: string) => {
     setSelectedCharIds((prev) =>
@@ -159,6 +197,57 @@ export default function WorkPanel({ novel }: Props) {
             >
               Discussion Question
             </span>
+
+            {selectedPart.content && (
+              <button
+                type="button"
+                className="btn-gold"
+                onClick={generateDQ}
+                disabled={generatingDQ}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  padding: '8px 12px',
+                  marginBottom: 10,
+                }}
+              >
+                {generatingDQ ? (
+                  <>
+                    <RefreshCw
+                      size={12}
+                      style={{ animation: 'spin 1s linear infinite' }}
+                    />
+                    생성 중…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={12} />
+                    {selectedPart.discussionQuestions.length > 0
+                      ? 'DQ+구도 다시 생성'
+                      : 'DQ+구도 자동 생성'}
+                  </>
+                )}
+              </button>
+            )}
+            {dqError && (
+              <div
+                style={{
+                  marginBottom: 10,
+                  padding: '8px 12px',
+                  background: '#fff5f5',
+                  border: '1px solid #fcc',
+                  fontSize: 11,
+                  color: 'var(--crimson)',
+                }}
+              >
+                {dqError}
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {selectedPart.discussionQuestions.map((dq, i) => (
                 <button
