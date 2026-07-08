@@ -102,7 +102,7 @@ Option B: The Scary Wild (Free): "I'm leaving! I'd rather be hungry and scared b
 답변 반환시에는 동일한 구분선 구조를 유지하고, 각 항목의 시작에는 제목을 붙여서 코드블럭으로 반환할 것
 내용에 알맞게 캐릭터들의 구도도 설정하는데, 어떤 캐릭터가 어떤 구도를 잡고 있는지 명시할 것
 주어진 내용에서 캐릭터가 느낄만한 표정을 구체적으로 묘사할 것
-캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것
+캐릭터명은 {}으로 감싸고, 어떤 캐릭터들이 등장하는지 각 항목 답변 제일 앞에 모아서 알려줄 것{{characterNote}}
 
 {{questionItems}}`,
 
@@ -172,11 +172,19 @@ export function buildDQPrompt(
   });
 }
 
+export function buildCharacterNote(characterNames?: string[]): string {
+  return characterNames && characterNames.length > 0
+    ? `\n등장 가능한 캐릭터는 다음으로 한정합니다: ${characterNames.join(', ')}. 이 목록에 없는 새 캐릭터를 만들지 마세요.`
+    : '';
+}
+
 export function buildCompositionPrompt(
   questionItems: string,
-  template: string = DEFAULT_PROMPT_TEMPLATES.composition
+  template: string = DEFAULT_PROMPT_TEMPLATES.composition,
+  characterNames?: string[]
 ): string {
-  return renderTemplate(template, { questionItems });
+  const characterNote = buildCharacterNote(characterNames);
+  return renderTemplate(template, { questionItems, characterNote });
 }
 
 export function buildCharInfoPrompt(
