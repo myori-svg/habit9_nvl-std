@@ -65,25 +65,17 @@ export default function DQStep({
     }
   };
 
-  // === 구분자로 여러 파트를 한 번에 저장한 경우 자동 분할
   const handleSaveDQs = async () => {
     if (!dqResult.trim() || selectedParts.length === 0) return;
-    const blocks = dqResult
+    const questions = dqResult
       .trim()
       .split(/\n*===\n*/)
-      .map((b) => b.trim())
-      .filter(Boolean);
-    const perPart = selectedParts.length === 1 ? [dqResult.trim()] : blocks;
+      .map((q) => q.trim())
+      .filter(Boolean)
+      .map((text) => ({ text }));
 
-    for (let i = 0; i < selectedParts.length; i++) {
-      const block = perPart[i];
-      if (!block) continue;
-      const questions = block
-        .split(/\n*---\n*/)
-        .map((q) => q.trim())
-        .filter(Boolean)
-        .map((text) => ({ text }));
-      await setPartDQs(novel.id, selectedParts[i].id, questions);
+    for (const part of selectedParts) {
+      await setPartDQs(novel.id, part.id, questions);
     }
     setSaved(true);
     setTimeout(() => {
@@ -274,9 +266,8 @@ export default function DQStep({
               lineHeight: 1.6,
             }}
           >
-            Gemini 결과를 붙여넣으면 선택한 챕터에 저장됩니다. 각 질문은{' '}
-            <code>---</code>, 챕터가 여러 개면 <code>===</code> 구분자로
-            나눠주세요.
+            Gemini 결과를 붙여넣으면 선택한 챕터에 저장됩니다. 질문 간 구분자는{' '}
+            <code>===</code>, 질문 내 파트 구분자는 <code>---</code>입니다.
           </p>
           <textarea
             className="input-field"
