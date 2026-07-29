@@ -1,5 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { type NextRequest, NextResponse } from 'next/server';
+import {
+  generateContentWithRetry,
+  getGenAI,
+  PERMISSIVE_SAFETY_SETTINGS,
+} from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,9 +15,10 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const genAI = getGenAI();
     const imageModel = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash-image',
+      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
       generationConfig: {
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: { aspectRatio: '16:9' },
@@ -66,7 +71,7 @@ ${charPromptsText}`;
     }
     parts.push({ text: fullPrompt });
 
-    const result = await imageModel.generateContent(parts as never);
+    const result = await generateContentWithRetry(imageModel, parts as never);
     for (const part of result.response.candidates?.[0]?.content?.parts ?? []) {
       const p = part as { inlineData?: { data: string; mimeType: string } };
       if (p.inlineData)

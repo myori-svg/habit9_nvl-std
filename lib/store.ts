@@ -92,9 +92,19 @@ export const useStore = create<AppStore>()(
         await saveNovel(novel);
       },
 
+      // novel 문서 전체를 saveNovel(setDoc)로 덮어쓰는 함수들은, 쓰기 직후
+      // onSnapshot echo가 로컬 state에 반영되기 전에 다음 호출이 get().novels를
+      // 다시 읽으면 stale한 novel을 기준으로 재저장해 직전 변경을 덮어써버린다
+      // (여러 캐릭터를 순차 자동생성할 때 앞 캐릭터 저장분이 유실되는 원인이었음).
+      // 그래서 saveNovel 호출 전에 로컬 state도 optimistic하게 먼저 갱신한다.
       updateNovel: async (id, data) => {
         const novel = get().novels.find((n) => n.id === id);
-        if (novel) await saveNovel({ ...novel, ...data });
+        if (!novel) return;
+        const updated = { ...novel, ...data };
+        set((s) => ({
+          novels: s.novels.map((n) => (n.id === id ? updated : n)),
+        }));
+        await saveNovel(updated);
       },
 
       // styleRefImages는 Firestore에 저장되지 않는 in-memory 전용 필드라
@@ -144,6 +154,9 @@ export const useStore = create<AppStore>()(
             c.id === charId ? { ...c, ...data } : c
           ),
         };
+        set((s) => ({
+          novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
+        }));
         await saveNovel(updated);
       },
 
@@ -190,6 +203,9 @@ export const useStore = create<AppStore>()(
                 }
           ),
         };
+        set((s) => ({
+          novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
+        }));
         await saveNovel(updated);
       },
 
@@ -211,6 +227,9 @@ export const useStore = create<AppStore>()(
                 }
           ),
         };
+        set((s) => ({
+          novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
+        }));
         await saveNovel(updated);
       },
 
@@ -223,7 +242,11 @@ export const useStore = create<AppStore>()(
           content: c.content,
           discussionQuestions: [],
         }));
-        await saveNovel({ ...novel, parts: [...novel.parts, ...newParts] });
+        const updated = { ...novel, parts: [...novel.parts, ...newParts] };
+        set((s) => ({
+          novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
+        }));
+        await saveNovel(updated);
       },
 
       saveScene: async (novelId, partId, dqId, base64, mime) => {

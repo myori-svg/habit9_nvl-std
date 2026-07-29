@@ -1,5 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { type NextRequest, NextResponse } from 'next/server';
+import {
+  generateContentWithRetry,
+  getGenAI,
+  PERMISSIVE_SAFETY_SETTINGS,
+} from '@/lib/gemini';
 import {
   buildCompositionPrompt,
   buildDQPrompt,
@@ -26,8 +30,11 @@ export async function POST(req: NextRequest) {
     );
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const textModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const genAI = getGenAI();
+    const textModel = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
+    });
 
     // ── Step 1: Discussion Questions ──────────────────────────────
     const dqPrompt = buildDQPrompt(
@@ -35,10 +42,13 @@ export async function POST(req: NextRequest) {
       partContent,
       dqTemplate ?? DEFAULT_PROMPT_TEMPLATES.dq
     );
-    const dqResult = await textModel.generateContent(`${dqPrompt}
+    const dqResult = await generateContentWithRetry(
+      textModel,
+      `${dqPrompt}
 
 Return ONLY a JSON array of question strings, no markdown fences:
-["Question 1", "Question 2"]`);
+["Question 1", "Question 2"]`
+    );
     const dqText = dqResult.response
       .text()
       .trim()
@@ -54,7 +64,10 @@ Return ONLY a JSON array of question strings, no markdown fences:
         compositionTemplate ?? DEFAULT_PROMPT_TEMPLATES.composition,
         characterNames
       );
-      const compResult = await textModel.generateContent(compositionPrompt);
+      const compResult = await generateContentWithRetry(
+        textModel,
+        compositionPrompt
+      );
       discussionQuestions.push({
         id: crypto.randomUUID(),
         text: q,

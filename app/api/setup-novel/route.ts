@@ -1,5 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { type NextRequest, NextResponse } from 'next/server';
+import {
+  generateContentWithRetry,
+  getGenAI,
+  PERMISSIVE_SAFETY_SETTINGS,
+} from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
   const { title, summary, stylePrompt, styleRefImages } = await req.json();
@@ -10,8 +14,11 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const textModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const genAI = getGenAI();
+  const textModel = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    safetySettings: PERMISSIVE_SAFETY_SETTINGS,
+  });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -27,7 +34,9 @@ export async function POST(req: NextRequest) {
           message: 'Generating discussion questions…',
         });
 
-        const dqResult = await textModel.generateContent(`
+        const dqResult = await generateContentWithRetry(
+          textModel,
+          `
 You are an expert literature teacher creating discussion questions for elementary students (grade 4).
 
 Novel: "${title}"
@@ -49,7 +58,8 @@ Return ONLY valid JSON, no markdown fences:
     }
   ]
 }
-`);
+`
+        );
 
         const dqText = dqResult.response
           .text()
@@ -83,7 +93,9 @@ Return ONLY valid JSON, no markdown fences:
               total: totalDQs,
             });
 
-            const compResult = await textModel.generateContent(`
+            const compResult = await generateContentWithRetry(
+              textModel,
+              `
 You are an expert at creating visual scene composition prompts for storybook illustration.
 
 Novel: "${title}"
@@ -97,7 +109,8 @@ Create a detailed scene composition prompt describing:
 - Emotional tone of the scene
 
 Return ONLY the composition prompt text. No preamble. English only.
-`);
+`
+            );
             dqsWithComposition.push({
               id: crypto.randomUUID(),
               text: q,
@@ -118,13 +131,16 @@ Return ONLY the composition prompt text. No preamble. English only.
           message: 'Extracting character list…',
         });
 
-        const charListResult = await textModel.generateContent(`
+        const charListResult = await generateContentWithRetry(
+          textModel,
+          `
 Novel: "${title}"
 Summary: ${summary}
 
 List all named characters. Return ONLY valid JSON, no markdown fences:
 {"characters": [{"name": "Character Name"}]}
-`);
+`
+        );
         const charListText = charListResult.response
           .text()
           .trim()
@@ -150,11 +166,15 @@ List all named characters. Return ONLY valid JSON, no markdown fences:
             total: charListData.characters.length,
           });
 
-          const infoResult = await textModel.generateContent(`
+          const infoResult = await generateContentWithRetry(
+            textModel,
+            `
 Describe the character "${char.name}" from "${title}".
 Include: age, physical appearance (hair, eyes, build, clothing), personality traits, story role.
+When describing age, avoid stating an exact number (e.g. "13 years old") — use a vague phrase like "a young child" or "elementary-school age" instead, to reduce false-positive safety filter blocks on children's illustration content.
 Be specific. Under 150 words.
-`);
+`
+          );
           charsWithInfo.push({
             name: char.name,
             info: infoResult.response.text().trim(),
@@ -203,11 +223,13 @@ Requirements:
 - Describe appearance, clothing, expression reflecting personality
 - Style: ${styleRef}
 ${refImages.length > 0 ? '- Match the style of the reference images provided' : ''}
+- If an exact age is mentioned (e.g. "13 years old"), rephrase it vaguely (e.g. "young", "a child") instead of stating the number — this reduces false-positive safety filter blocks on children's illustration content
 
 Return ONLY the prompt. English only.`,
           });
 
-          const promptResult = await textModel.generateContent(
+          const promptResult = await generateContentWithRetry(
+            textModel,
             promptParts as never
           );
           charsWithPrompts.push({
@@ -226,6 +248,7 @@ Return ONLY the prompt. English only.`,
 
         const imageModel = genAI.getGenerativeModel({
           model: 'gemini-2.5-flash-image',
+          safetySettings: PERMISSIVE_SAFETY_SETTINGS,
           generationConfig: {
             // @ts-expect-error responseModalities/imageConfig not yet in SDK types
             responseModalities: ['TEXT', 'IMAGE'],
@@ -255,7 +278,8 @@ Return ONLY the prompt. English only.`,
             }
             imgParts.push({ text: char.textPrompt });
 
-            const imgResult = await imageModel.generateContent(
+            const imgResult = await generateContentWithRetry(
+              imageModel,
               imgParts as never
             );
             let imageBase64 = '';
