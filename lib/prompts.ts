@@ -109,7 +109,7 @@ Option B: The Scary Wild (Free): "I'm leaving! I'd rather be hungry and scared b
   charInfo: `소설 "{{novelTitle}}"에 등장하는 캐릭터 "{{name}}"의 정보를 정리해주세요.
 
 아래 내용을 포함해주세요:
-- 나이 및 신체적 외형 (머리카락, 눈, 체형, 주로 입는 옷)
+- 나이 및 신체적 외형 (머리카락, 눈, 체형, 주로 입는 옷) — 나이는 "13세" 같은 정확한 숫자 대신 "초등학교 고학년" "10대 초반" 등 학년/생애주기로 완곡하게 표현할 것 (이미지 생성 단계에서 세이프티 필터 오탐 방지)
 - 성격 특징
 - 이야기에서의 역할
 
@@ -120,6 +120,7 @@ Option B: The Scary Wild (Free): "I'm leaving! I'd rather be hungry and scared b
 - 외형, 의상, 성격이 드러나는 표정과 포즈 묘사
 - 성격 정보를 표정에 반영할 것
 - 화풍/스타일은 언급하지 말 것 (이미지 생성 단계에서 별도로 적용됨)
+- 나이는 "13 year old" 같은 정확한 숫자 대신 "young" "child" "student" 등으로 완곡하게 표현할 것 (세이프티 필터 오탐 방지)
 
 <character info>
 캐릭터명: {{charPromptName}}

@@ -1,5 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { type NextRequest, NextResponse } from 'next/server';
+import {
+  generateContentWithRetry,
+  getGenAI,
+  PERMISSIVE_SAFETY_SETTINGS,
+} from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,11 +19,15 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const textModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const genAI = getGenAI();
+    const textModel = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
+    });
 
-    const result =
-      await textModel.generateContent(`Create a detailed image generation prompt for this character.
+    const result = await generateContentWithRetry(
+      textModel,
+      `Create a detailed image generation prompt for this character.
 
 Character: ${characterName}
 Info: ${characterInfo}
@@ -28,8 +36,10 @@ Requirements:
 - Full-body storybook illustration
 - Describe appearance, clothing, expression reflecting personality
 - Do not mention art style or rendering medium (applied separately at image generation)
+- If an exact age is mentioned (e.g. "13 years old"), rephrase it vaguely (e.g. "young", "a child") instead of stating the number — this reduces false-positive safety filter blocks on children's illustration content
 
-Return ONLY the prompt. English only.`);
+Return ONLY the prompt. English only.`
+    );
     return NextResponse.json({ textPrompt: result.response.text().trim() });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
