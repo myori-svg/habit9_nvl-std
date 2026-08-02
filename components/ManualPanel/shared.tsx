@@ -15,10 +15,14 @@ export interface AutoGenCharStatus {
 export function AutoGenStatusList({
   chars,
   status,
+  selected,
+  onToggle,
   onRegenerate,
 }: {
   chars: { id: string; name: string }[];
   status: Record<string, AutoGenCharStatus>;
+  selected?: Record<string, boolean>;
+  onToggle?: (id: string) => void;
   onRegenerate?: (id: string) => void;
 }) {
   if (chars.length === 0) return null;
@@ -48,6 +52,14 @@ export function AutoGenStatusList({
               borderColor: s.state === 'error' ? '#fcc' : 'var(--border)',
             }}
           >
+            {onToggle && (
+              <input
+                type="checkbox"
+                checked={selected?.[c.id] ?? false}
+                onChange={() => onToggle(c.id)}
+                style={{ flexShrink: 0, cursor: 'pointer' }}
+              />
+            )}
             <span
               style={{
                 width: 12,

@@ -1,6 +1,6 @@
 'use client';
-import { Check, Sparkles, Upload, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Check, Sparkles, Square, Upload, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { downloadBase64File } from '@/lib/download';
 import {
   buildCharImagePrompt,
@@ -57,8 +57,25 @@ export default function CharImageStep({
   const [charStatus, setCharStatus] = useState<
     Record<string, AutoGenCharStatus>
   >({});
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const stopRequested = useRef(false);
 
-  const pendingChars = novel.characters.filter((c) => !c.imageGenerated);
+  // 새로 추가된 캐릭터(아직 selected에 없는 id)는 미생성 상태일 때만 기본 체크
+  useEffect(() => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const c of novel.characters) {
+        if (!(c.id in next)) {
+          next[c.id] = !c.imageGenerated;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [novel.characters]);
+
+  const selectedChars = novel.characters.filter((c) => selected[c.id]);
 
   const handleRefImageUpload = (file: File) => {
     const reader = new FileReader();
@@ -108,14 +125,27 @@ export default function CharImageStep({
   };
 
   const handleAutoGenerate = async () => {
+    stopRequested.current = false;
     setAutoRunning(true);
     setCharStatus(
-      Object.fromEntries(pendingChars.map((c) => [c.id, { state: 'pending' }]))
+      Object.fromEntries(selectedChars.map((c) => [c.id, { state: 'pending' }]))
     );
-    for (const char of pendingChars) {
+    for (const char of selectedChars) {
+      if (stopRequested.current) {
+        setCharStatus((prev) =>
+          prev[char.id]?.state === 'pending'
+            ? { ...prev, [char.id]: { state: 'error', message: '중지됨' } }
+            : prev
+        );
+        continue;
+      }
       await generateImageForChar(char, '생성 중…');
     }
     setAutoRunning(false);
+  };
+
+  const handleStop = () => {
+    stopRequested.current = true;
   };
 
   const handleRegenerate = (charId: string) => {
@@ -318,28 +348,47 @@ export default function CharImageStep({
               textTransform: 'uppercase',
             }}
           >
-            전체 캐릭터 자동 생성 ({pendingChars.length}명 남음)
+            전체 캐릭터 자동 생성 ({selectedChars.length}명 선택됨)
           </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={handleAutoGenerate}
-            disabled={autoRunning || pendingChars.length === 0}
-            style={{
-              fontSize: 12,
-              padding: '7px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Sparkles size={12} />
-            {autoRunning
-              ? '생성 중…'
-              : pendingChars.length === 0
-                ? '모두 생성됨'
-                : '자동 생성 + 다운로드'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleAutoGenerate}
+              disabled={autoRunning || selectedChars.length === 0}
+              style={{
+                fontSize: 12,
+                padding: '7px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Sparkles size={12} />
+              {autoRunning
+                ? '생성 중…'
+                : selectedChars.length === 0
+                  ? '캐릭터를 선택하세요'
+                  : '자동 생성 + 다운로드'}
+            </button>
+            {autoRunning && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={handleStop}
+                style={{
+                  fontSize: 12,
+                  padding: '7px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Square size={12} />
+                중지
+              </button>
+            )}
+          </div>
           <AutoGenStatusList
             chars={novel.characters}
             status={Object.fromEntries(
@@ -351,6 +400,10 @@ export default function CharImageStep({
                     : { state: 'pending' }),
               ])
             )}
+            selected={selected}
+            onToggle={(id) =>
+              setSelected((prev) => ({ ...prev, [id]: !prev[id] }))
+            }
             onRegenerate={handleRegenerate}
           />
         </div>
