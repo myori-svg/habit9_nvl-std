@@ -201,6 +201,7 @@ export function PromptBox({
   const [copied, setCopied] = useState(false);
   const [value, setValue] = useState(prompt);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // 원본 prompt가 바뀌면 (다른 소설/캐릭터 선택 등) 편집 내용을 최신 값으로 리셋
   useEffect(() => {
@@ -215,6 +216,21 @@ export function PromptBox({
 
   const handleSaveTemplate = async () => {
     if (!templateKey) return;
+    // reverseTemplate은 값이 빈 문자열인 변수는 되돌리지 못하고 건너뛴다.
+    // 그 상태에서 저장하면 렌더링된 placeholder 텍스트가 {{var}} 자리
+    // 대신 리터럴로 굳어버려, 이후 챕터/캐릭터를 선택해도 값이 반영되지
+    // 않는 문제가 생긴다 (예: 챕터 미선택 상태로 DQ 템플릿을 저장한 경우).
+    // 값이 비어있는 변수가 있으면 저장을 막는다.
+    const emptyVarKeys = Object.entries(vars ?? {})
+      .filter(([, v]) => !v)
+      .map(([k]) => k);
+    if (emptyVarKeys.length > 0) {
+      setSaveError(
+        `아직 값이 채워지지 않은 항목이 있어 템플릿으로 저장할 수 없어요 (${emptyVarKeys.join(', ')}). 내용을 먼저 채운 뒤 다시 시도해주세요.`
+      );
+      setTimeout(() => setSaveError(''), 4000);
+      return;
+    }
     const template = reverseTemplate(value, vars ?? {});
     await savePromptTemplate(templateKey, template);
     setSaved(true);
@@ -275,6 +291,21 @@ export function PromptBox({
           <CopyButton onCopy={handleCopy} copied={copied} />
         </div>
       </div>
+
+      {saveError && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: '8px 12px',
+            background: '#fff5f5',
+            border: '1px solid #fcc',
+            fontSize: 12,
+            color: 'var(--crimson)',
+          }}
+        >
+          {saveError}
+        </div>
+      )}
 
       {copied && (
         // biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss overlay, not a keyboard-operable widget
