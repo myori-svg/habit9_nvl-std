@@ -15,15 +15,7 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
 
-    const genAI = getGenAI();
-    const imageModel = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-image',
-      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { aspectRatio: '16:9' },
-      } as never,
-    });
+    const ai = getGenAI();
 
     const styleRef =
       stylePrompt ||
@@ -71,8 +63,16 @@ ${charPromptsText}`;
     }
     parts.push({ text: fullPrompt });
 
-    const result = await generateContentWithRetry(imageModel, parts as never);
-    for (const part of result.response.candidates?.[0]?.content?.parts ?? []) {
+    const result = await generateContentWithRetry(ai, {
+      model: 'gemini-3.1-flash-image',
+      contents: parts,
+      config: {
+        safetySettings: PERMISSIVE_SAFETY_SETTINGS,
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { aspectRatio: '16:9' },
+      },
+    });
+    for (const part of result.candidates?.[0]?.content?.parts ?? []) {
       const p = part as { inlineData?: { data: string; mimeType: string } };
       if (p.inlineData)
         return NextResponse.json({

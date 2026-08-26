@@ -3,6 +3,7 @@ import {
   generateContentWithRetry,
   getGenAI,
   PERMISSIVE_SAFETY_SETTINGS,
+  requireText,
 } from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
@@ -19,24 +20,21 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
 
-    const genAI = getGenAI();
-    const textModel = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-    });
+    const ai = getGenAI();
 
-    const result = await generateContentWithRetry(
-      textModel,
-      `
+    const result = await generateContentWithRetry(ai, {
+      model: 'gemini-3.6-flash',
+      contents: `
 Describe the character "${characterName}" from the novel "${novelTitle}".
 ${summary ? `Story summary for context:\n${summary}\n` : ''}
 Include: age, physical appearance (hair, eyes, build, clothing), personality traits, story role.
 When describing age, avoid stating an exact number (e.g. "13 years old") — use a vague phrase like "a young child" or "elementary-school age" instead, to reduce false-positive safety filter blocks on children's illustration content.
 Be specific. Under 150 words.
-`
-    );
+`,
+      config: { safetySettings: PERMISSIVE_SAFETY_SETTINGS },
+    });
 
-    return NextResponse.json({ info: result.response.text().trim() });
+    return NextResponse.json({ info: requireText(result).trim() });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

@@ -19,16 +19,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
 
-    const genAI = getGenAI();
-    const imageModel = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-image',
-      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-      generationConfig: {
-        // @ts-expect-error responseModalities/imageConfig not yet in SDK types
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { aspectRatio: '16:9' },
-      },
-    });
+    const ai = getGenAI();
 
     const refImages: { base64: string; mime: string }[] = styleRefImages ?? [];
 
@@ -42,8 +33,16 @@ export async function POST(req: NextRequest) {
       text: `${stylePrompt ? `Style: ${stylePrompt}${refImages.length > 0 ? ' (match the style of the reference images provided)' : ''}\n\n` : ''}${textPrompt}`,
     });
 
-    const result = await generateContentWithRetry(imageModel, parts as never);
-    for (const part of result.response.candidates?.[0]?.content?.parts ?? []) {
+    const result = await generateContentWithRetry(ai, {
+      model: 'gemini-3.1-flash-image',
+      contents: parts,
+      config: {
+        safetySettings: PERMISSIVE_SAFETY_SETTINGS,
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { aspectRatio: '16:9' },
+      },
+    });
+    for (const part of result.candidates?.[0]?.content?.parts ?? []) {
       const p = part as { inlineData?: { data: string; mimeType: string } };
       if (p.inlineData)
         return NextResponse.json({

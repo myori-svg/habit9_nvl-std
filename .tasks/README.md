@@ -64,6 +64,7 @@
 |티켓|제목|카테고리|
 |-|-|-|
 |[MM-16](done/MM-16.md)|프롬프트 파일 분리|Manual Mode|
+|[AI-01](done/AI-01.md)|Gemini SDK 마이그레이션 (전체 API 호출 장애 수정)|AI 연동|
 
 ## ⏸ 보류 (hold)
 

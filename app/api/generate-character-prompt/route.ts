@@ -3,6 +3,7 @@ import {
   generateContentWithRetry,
   getGenAI,
   PERMISSIVE_SAFETY_SETTINGS,
+  requireText,
 } from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
@@ -19,15 +20,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
 
-    const genAI = getGenAI();
-    const textModel = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-    });
+    const ai = getGenAI();
 
-    const result = await generateContentWithRetry(
-      textModel,
-      `Create a detailed image generation prompt for this character.
+    const result = await generateContentWithRetry(ai, {
+      model: 'gemini-3.6-flash',
+      contents: `Create a detailed image generation prompt for this character.
 
 Character: ${characterName}
 Info: ${characterInfo}
@@ -38,9 +35,10 @@ Requirements:
 - Do not mention art style or rendering medium (applied separately at image generation)
 - If an exact age is mentioned (e.g. "13 years old"), rephrase it vaguely (e.g. "young", "a child") instead of stating the number — this reduces false-positive safety filter blocks on children's illustration content
 
-Return ONLY the prompt. English only.`
-    );
-    return NextResponse.json({ textPrompt: result.response.text().trim() });
+Return ONLY the prompt. English only.`,
+      config: { safetySettings: PERMISSIVE_SAFETY_SETTINGS },
+    });
+    return NextResponse.json({ textPrompt: requireText(result).trim() });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
