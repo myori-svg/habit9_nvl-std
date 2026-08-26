@@ -3,6 +3,7 @@ import {
   generateContentWithRetry,
   getGenAI,
   PERMISSIVE_SAFETY_SETTINGS,
+  requireText,
 } from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
@@ -14,11 +15,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
 
-  const genAI = getGenAI();
-  const textModel = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-  });
+  const ai = getGenAI();
+  const textModel = 'gemini-2.5-flash';
+  const textConfig = { safetySettings: PERMISSIVE_SAFETY_SETTINGS };
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -34,9 +33,9 @@ export async function POST(req: NextRequest) {
           message: 'Generating discussion questions…',
         });
 
-        const dqResult = await generateContentWithRetry(
-          textModel,
-          `
+        const dqResult = await generateContentWithRetry(ai, {
+          model: textModel,
+          contents: `
 You are an expert literature teacher creating discussion questions for elementary students (grade 4).
 
 Novel: "${title}"
@@ -58,11 +57,11 @@ Return ONLY valid JSON, no markdown fences:
     }
   ]
 }
-`
-        );
+`,
+          config: textConfig,
+        });
 
-        const dqText = dqResult.response
-          .text()
+        const dqText = requireText(dqResult)
           .trim()
           .replace(/```json|```/g, '')
           .trim();
@@ -93,9 +92,9 @@ Return ONLY valid JSON, no markdown fences:
               total: totalDQs,
             });
 
-            const compResult = await generateContentWithRetry(
-              textModel,
-              `
+            const compResult = await generateContentWithRetry(ai, {
+              model: textModel,
+              contents: `
 You are an expert at creating visual scene composition prompts for storybook illustration.
 
 Novel: "${title}"
@@ -109,12 +108,13 @@ Create a detailed scene composition prompt describing:
 - Emotional tone of the scene
 
 Return ONLY the composition prompt text. No preamble. English only.
-`
-            );
+`,
+              config: textConfig,
+            });
             dqsWithComposition.push({
               id: crypto.randomUUID(),
               text: q,
-              compositionPrompt: compResult.response.text().trim(),
+              compositionPrompt: requireText(compResult).trim(),
             });
           }
           partsWithComposition.push({
@@ -131,18 +131,18 @@ Return ONLY the composition prompt text. No preamble. English only.
           message: 'Extracting character list…',
         });
 
-        const charListResult = await generateContentWithRetry(
-          textModel,
-          `
+        const charListResult = await generateContentWithRetry(ai, {
+          model: textModel,
+          contents: `
 Novel: "${title}"
 Summary: ${summary}
 
 List all named characters. Return ONLY valid JSON, no markdown fences:
 {"characters": [{"name": "Character Name"}]}
-`
-        );
-        const charListText = charListResult.response
-          .text()
+`,
+          config: textConfig,
+        });
+        const charListText = requireText(charListResult)
           .trim()
           .replace(/```json|```/g, '')
           .trim();
@@ -166,18 +166,19 @@ List all named characters. Return ONLY valid JSON, no markdown fences:
             total: charListData.characters.length,
           });
 
-          const infoResult = await generateContentWithRetry(
-            textModel,
-            `
+          const infoResult = await generateContentWithRetry(ai, {
+            model: textModel,
+            contents: `
 Describe the character "${char.name}" from "${title}".
 Include: age, physical appearance (hair, eyes, build, clothing), personality traits, story role.
 When describing age, avoid stating an exact number (e.g. "13 years old") — use a vague phrase like "a young child" or "elementary-school age" instead, to reduce false-positive safety filter blocks on children's illustration content.
 Be specific. Under 150 words.
-`
-          );
+`,
+            config: textConfig,
+          });
           charsWithInfo.push({
             name: char.name,
-            info: infoResult.response.text().trim(),
+            info: requireText(infoResult).trim(),
           });
         }
 
@@ -228,13 +229,14 @@ ${refImages.length > 0 ? '- Match the style of the reference images provided' : 
 Return ONLY the prompt. English only.`,
           });
 
-          const promptResult = await generateContentWithRetry(
-            textModel,
-            promptParts as never
-          );
+          const promptResult = await generateContentWithRetry(ai, {
+            model: textModel,
+            contents: promptParts,
+            config: textConfig,
+          });
           charsWithPrompts.push({
             ...char,
-            textPrompt: promptResult.response.text().trim(),
+            textPrompt: requireText(promptResult).trim(),
           });
         }
 
@@ -244,16 +246,6 @@ Return ONLY the prompt. English only.`,
           message: 'Generating character images…',
           current: 0,
           total: charsWithPrompts.length,
-        });
-
-        const imageModel = genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash-image',
-          safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-          generationConfig: {
-            // @ts-expect-error responseModalities/imageConfig not yet in SDK types
-            responseModalities: ['TEXT', 'IMAGE'],
-            imageConfig: { aspectRatio: '16:9' },
-          },
         });
 
         const finalCharacters = [];
@@ -278,15 +270,20 @@ Return ONLY the prompt. English only.`,
             }
             imgParts.push({ text: char.textPrompt });
 
-            const imgResult = await generateContentWithRetry(
-              imageModel,
-              imgParts as never
-            );
+            const imgResult = await generateContentWithRetry(ai, {
+              model: 'gemini-2.5-flash-image',
+              contents: imgParts,
+              config: {
+                safetySettings: PERMISSIVE_SAFETY_SETTINGS,
+                responseModalities: ['TEXT', 'IMAGE'],
+                imageConfig: { aspectRatio: '16:9' },
+              },
+            });
             let imageBase64 = '';
             let imageMime = 'image/png';
 
-            for (const part of imgResult.response.candidates?.[0]?.content
-              ?.parts ?? []) {
+            for (const part of imgResult.candidates?.[0]?.content?.parts ??
+              []) {
               const p = part as {
                 inlineData?: { data: string; mimeType: string };
               };

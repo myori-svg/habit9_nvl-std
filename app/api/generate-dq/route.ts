@@ -3,6 +3,7 @@ import {
   generateContentWithRetry,
   getGenAI,
   PERMISSIVE_SAFETY_SETTINGS,
+  requireText,
 } from '@/lib/gemini';
 import {
   buildCompositionPrompt,
@@ -30,11 +31,9 @@ export async function POST(req: NextRequest) {
     );
 
   try {
-    const genAI = getGenAI();
-    const textModel = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-    });
+    const ai = getGenAI();
+    const model = 'gemini-2.5-flash';
+    const config = { safetySettings: PERMISSIVE_SAFETY_SETTINGS };
 
     // ── Step 1: Discussion Questions ──────────────────────────────
     const dqPrompt = buildDQPrompt(
@@ -42,15 +41,15 @@ export async function POST(req: NextRequest) {
       partContent,
       dqTemplate ?? DEFAULT_PROMPT_TEMPLATES.dq
     );
-    const dqResult = await generateContentWithRetry(
-      textModel,
-      `${dqPrompt}
+    const dqResult = await generateContentWithRetry(ai, {
+      model,
+      contents: `${dqPrompt}
 
 Return ONLY a JSON array of question strings, no markdown fences:
-["Question 1", "Question 2"]`
-    );
-    const dqText = dqResult.response
-      .text()
+["Question 1", "Question 2"]`,
+      config,
+    });
+    const dqText = requireText(dqResult)
       .trim()
       .replace(/```json|```/g, '')
       .trim();
@@ -64,14 +63,15 @@ Return ONLY a JSON array of question strings, no markdown fences:
         compositionTemplate ?? DEFAULT_PROMPT_TEMPLATES.composition,
         characterNames
       );
-      const compResult = await generateContentWithRetry(
-        textModel,
-        compositionPrompt
-      );
+      const compResult = await generateContentWithRetry(ai, {
+        model,
+        contents: compositionPrompt,
+        config,
+      });
       discussionQuestions.push({
         id: crypto.randomUUID(),
         text: q,
-        compositionPrompt: compResult.response.text().trim(),
+        compositionPrompt: requireText(compResult).trim(),
       });
     }
 

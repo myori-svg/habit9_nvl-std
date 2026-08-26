@@ -1,10 +1,16 @@
 import {
-  type GenerateContentResult,
-  type GenerativeModel,
-  GoogleGenerativeAI,
+  BlockedReason,
+  FinishReason,
+  type GenerateContentParameters,
+  type GenerateContentResponse,
+  GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
-} from '@google/generative-ai';
+} from '@google/genai';
+
+// 2025-11-30부로 지원이 완전히 종료된 @google/generative-ai(구 SDK)에서
+// 공식 후속 SDK인 @google/genai로 이전 (AI-01, 2026-08-26).
+// https://github.com/google-gemini/deprecated-generative-ai-js
 
 // 소설 삽화 특성상 미성년 캐릭터의 외형 묘사가 정상적으로 자주 등장하는데,
 // Gemini 기본 세이프티 임계값은 이를 아동 관련 민감 콘텐츠로 오탐해
@@ -20,8 +26,8 @@ export const PERMISSIVE_SAFETY_SETTINGS = [
   threshold: HarmBlockThreshold.BLOCK_NONE,
 }));
 
-export function getGenAI(): GoogleGenerativeAI {
-  return new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+export function getGenAI(): GoogleGenAI {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
 }
 
 // Gemini의 세이프티 판정은 확률적이라 동일한 입력도 호출마다 통과/차단이
@@ -32,35 +38,32 @@ export function getGenAI(): GoogleGenerativeAI {
 // 주의: generateContent()는 응답이 차단돼도 그 자체로는 reject되지 않는다.
 // 프롬프트 단계에서 통째로 막히면 candidates가 아예 undefined이고
 // promptFeedback.blockReason에 담기며, candidate까지는 생성됐지만 완성 전에
-// 막히면 candidates[0].finishReason에 담긴다. 두 경우 다 이후 response.text()
-// 호출 시점에야 예외가 던져지므로, try/catch가 아니라 이 두 필드를 직접
-// 확인해서 재시도 여부를 판단한다.
+// 막히면 candidates[0].finishReason에 담긴다. try/catch가 아니라 이 두 필드를
+// 직접 확인해서 재시도 여부를 판단한다. (참고: 구 SDK는 이 상태에서
+// response.text() 호출 시 예외를 던졌지만, 새 SDK의 response.text는 그냥
+// undefined를 반환한다 — 아래 requireText로 명시적 에러를 던지게 맞춰둠.)
 const PROHIBITED_CONTENT_RETRIES = 3;
 const RETRY_DELAY_MS = 500;
 
-function isBlockedByProhibitedContent(result: GenerateContentResult): boolean {
-  const { response } = result;
-  // SDK의 BlockReason/FinishReason 타입 선언이 실제 API 값(PROHIBITED_CONTENT)을
-  // 아직 포함하지 않아 string으로 비교한다.
-  const blockReason = response.promptFeedback?.blockReason as
-    | string
-    | undefined;
-  const finishReason = response.candidates?.[0]?.finishReason as
-    | string
-    | undefined;
+function isBlockedByProhibitedContent(
+  result: GenerateContentResponse
+): boolean {
+  const blockReason = result.promptFeedback?.blockReason;
+  const finishReason = result.candidates?.[0]?.finishReason;
   return (
-    blockReason === 'PROHIBITED_CONTENT' ||
-    finishReason === 'PROHIBITED_CONTENT'
+    blockReason === BlockedReason.PROHIBITED_CONTENT ||
+    finishReason === FinishReason.PROHIBITED_CONTENT ||
+    finishReason === FinishReason.IMAGE_PROHIBITED_CONTENT
   );
 }
 
 export async function generateContentWithRetry(
-  model: GenerativeModel,
-  request: Parameters<GenerativeModel['generateContent']>[0]
-): Promise<GenerateContentResult> {
-  let lastResult: GenerateContentResult | undefined;
+  ai: GoogleGenAI,
+  params: GenerateContentParameters
+): Promise<GenerateContentResponse> {
+  let lastResult: GenerateContentResponse | undefined;
   for (let attempt = 1; attempt <= PROHIBITED_CONTENT_RETRIES; attempt++) {
-    lastResult = await model.generateContent(request);
+    lastResult = await ai.models.generateContent(params);
     if (!isBlockedByProhibitedContent(lastResult)) return lastResult;
     if (attempt < PROHIBITED_CONTENT_RETRIES) {
       await new Promise((resolve) =>
@@ -68,7 +71,22 @@ export async function generateContentWithRetry(
       );
     }
   }
-  return lastResult as GenerateContentResult;
+  return lastResult as GenerateContentResponse;
+}
+
+// result.text는 텍스트 파트가 없으면(차단 등) undefined를 반환한다.
+// 재시도까지 다 거치고도 비어 있으면 원인을 알 수 있게 명시적으로 던진다.
+export function requireText(result: GenerateContentResponse): string {
+  if (!result.text) {
+    const reason =
+      result.promptFeedback?.blockReason ??
+      result.candidates?.[0]?.finishReason ??
+      'unknown';
+    throw new Error(
+      `Gemini가 텍스트를 반환하지 않았습니다 (reason: ${reason})`
+    );
+  }
+  return result.text;
 }
 
 // Convert Google Drive share URL to direct image URL
