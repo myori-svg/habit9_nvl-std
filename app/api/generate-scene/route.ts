@@ -64,7 +64,7 @@ ${charPromptsText}`;
     parts.push({ text: fullPrompt });
 
     const result = await generateContentWithRetry(ai, {
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-3.1-flash-image',
       contents: parts,
       config: {
         safetySettings: PERMISSIVE_SAFETY_SETTINGS,

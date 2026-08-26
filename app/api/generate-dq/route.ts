@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const ai = getGenAI();
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3.6-flash';
     const config = { safetySettings: PERMISSIVE_SAFETY_SETTINGS };
 
     // ── Step 1: Discussion Questions ──────────────────────────────

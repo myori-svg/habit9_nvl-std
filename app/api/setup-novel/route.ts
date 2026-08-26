@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     );
 
   const ai = getGenAI();
-  const textModel = 'gemini-2.5-flash';
+  const textModel = 'gemini-3.6-flash';
   const textConfig = { safetySettings: PERMISSIVE_SAFETY_SETTINGS };
 
   const encoder = new TextEncoder();
@@ -271,7 +271,7 @@ Return ONLY the prompt. English only.`,
             imgParts.push({ text: char.textPrompt });
 
             const imgResult = await generateContentWithRetry(ai, {
-              model: 'gemini-2.5-flash-image',
+              model: 'gemini-3.1-flash-image',
               contents: imgParts,
               config: {
                 safetySettings: PERMISSIVE_SAFETY_SETTINGS,

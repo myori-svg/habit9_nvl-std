@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const ai = getGenAI();
 
     const result = await generateContentWithRetry(ai, {
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: `
 Describe the character "${characterName}" from the novel "${novelTitle}".
 ${summary ? `Story summary for context:\n${summary}\n` : ''}

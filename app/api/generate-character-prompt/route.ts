@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const ai = getGenAI();
 
     const result = await generateContentWithRetry(ai, {
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: `Create a detailed image generation prompt for this character.
 
 Character: ${characterName}
