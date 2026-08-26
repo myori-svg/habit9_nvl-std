@@ -1,5 +1,5 @@
 'use client';
-import { Settings } from 'lucide-react';
+import { Menu, Settings } from 'lucide-react';
 import { useState } from 'react';
 import HistoryPanel from '@/components/HistoryPanel';
 import ManualPanel from '@/components/ManualPanel/ManualPanel';
@@ -15,6 +15,7 @@ export default function Home() {
   const { activeNovelId, novels } = useStore();
   const [tab, setTab] = useState<Tab>('manual');
   const [showSettings, setShowSettings] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const novel = novels.find((n) => n.id === activeNovelId);
   const isSetup = false;
@@ -27,7 +28,13 @@ export default function Home() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar />
+      <Sidebar open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+      <button
+        type="button"
+        className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-label="사이드바 닫기"
+      />
 
       <div
         style={{
@@ -49,7 +56,24 @@ export default function Home() {
             flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="mobile-menu-btn"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="사이드바 열기"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--ink-soft)',
+                padding: '6px 10px 6px 0',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Menu size={18} />
+            </button>
             {novel &&
               !isSetup &&
               TABS.map((t) => (

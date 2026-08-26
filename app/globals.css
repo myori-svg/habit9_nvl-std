@@ -199,3 +199,56 @@ textarea.input-field {
   resize: vertical;
   min-height: 80px;
 }
+
+/* Responsive shell: sidebar becomes an off-canvas drawer on narrow screens */
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+.mobile-menu-btn,
+.sidebar-close-btn {
+  display: none;
+}
+
+.work-panel-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px var(--shadow);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-backdrop.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0;
+    background: rgba(26, 20, 16, 0.4);
+    z-index: 30;
+  }
+  .mobile-menu-btn,
+  .sidebar-close-btn {
+    display: inline-flex;
+  }
+  .work-panel-grid {
+    grid-template-columns: 1fr;
+  }
+}
