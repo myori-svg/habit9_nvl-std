@@ -51,7 +51,6 @@
 |[CH-05](backlog/CH-05.md)|캐릭터 프롬프트 subtab 재배치|캐릭터 관리|
 |[SA-04](backlog/SA-04.md)|이미지 export|저장·아카이브|
 |[AR-01](backlog/AR-01.md)|Archive 탭 구현|저장·아카이브|
-|[UX-01](backlog/UX-01.md)|사이드바 숨기기|공통 UX|
 |[UX-02](backlog/UX-02.md)|새로고침 경고 모달|공통 UX|
 |[UX-04](backlog/UX-04.md)|API 키 저장 보안|공통 UX|
 |[GR-01](backlog/GR-01.md)|Grammar Studio 기획|Grammar Studio|
@@ -65,6 +64,7 @@
 |-|-|-|
 |[MM-16](done/MM-16.md)|프롬프트 파일 분리|Manual Mode|
 |[AI-01](done/AI-01.md)|Gemini SDK 마이그레이션 (전체 API 호출 장애 수정)|AI 연동|
+|[UX-01](done/UX-01.md)|사이드바 숨기기 (모바일 반응형)|공통 UX|
 
 ## ⏸ 보류 (hold)
 

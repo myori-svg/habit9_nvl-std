@@ -126,12 +126,10 @@ export default function WorkPanel({ novel }: Props) {
 
   return (
     <div
+      className="work-panel-grid"
       style={{
         maxWidth: 1000,
         margin: '0 auto',
-        display: 'grid',
-        gridTemplateColumns: '300px 1fr',
-        gap: 24,
       }}
     >
       {/* Left: selector panel */}
