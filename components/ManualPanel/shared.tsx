@@ -155,16 +155,19 @@ function SaveTemplateButton({
   onSave,
   saved,
   disabled,
+  disabledReason,
 }: {
   onSave: () => void;
   saved: boolean;
   disabled: boolean;
+  disabledReason?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onSave}
       disabled={disabled}
+      title={disabled ? disabledReason : undefined}
       className="btn-ghost"
       style={{
         display: 'flex',
@@ -221,6 +224,14 @@ export function PromptBox({
     setTimeout(() => setSaved(false), 2000);
   };
 
+  // vars 값이 비어 있으면(예: 챕터 미선택) reverseTemplate이 그 값을
+  // 되돌리지 못해서, 화면에 보이던 placeholder 문구가 {{변수}} 자리에
+  // 그대로 굳어 저장된다 — 그 뒤로는 뭘 선택해도 프롬프트에 반영이 안 되는
+  // 버그가 됨. 그런 상태에서는 저장 자체를 막는다.
+  const emptyVarKeys = Object.entries(vars ?? {})
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+
   return (
     <div style={{ marginBottom: 16 }}>
       {label && (
@@ -269,7 +280,12 @@ export function PromptBox({
             <SaveTemplateButton
               onSave={handleSaveTemplate}
               saved={saved}
-              disabled={!value.trim()}
+              disabled={!value.trim() || emptyVarKeys.length > 0}
+              disabledReason={
+                emptyVarKeys.length > 0
+                  ? '아직 안 채워진 항목이 있어서 템플릿으로 저장할 수 없어요 (예: 챕터를 먼저 선택해주세요). 이 상태로 저장하면 다음부터 항상 지금 보이는 빈 문구가 고정돼버려요.'
+                  : undefined
+              }
             />
           )}
           <CopyButton onCopy={handleCopy} copied={copied} />

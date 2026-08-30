@@ -37,6 +37,33 @@ export function extractCharNames(text: string): string[] {
   return matches.filter((name, idx) => matches.indexOf(name) === idx);
 }
 
+export interface SceneSplit {
+  main: string;
+  optionA: string;
+  optionB: string;
+}
+
+// composition 프롬프트는 "문제 본문 --- Option A --- Option B" 3구간 구조로
+// 생성된다 (DEFAULT_PROMPT_TEMPLATES.composition 지침 참고). Auto Mode에서
+// DQ 하나당 장면 이미지 3장(본문/Option A/Option B)을 구간별로 따로
+// 생성하기 위해 이 구조를 그대로 분리한다.
+export function splitCompositionScenes(compositionPrompt: string): SceneSplit {
+  let text = compositionPrompt.trim();
+  const fence = text.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+  if (fence) text = fence[1].trim();
+
+  const parts = text
+    .split(/\n-{3,}\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return {
+    main: parts[0] ?? text,
+    optionA: parts[1] ?? '',
+    optionB: parts[2] ?? '',
+  };
+}
+
 // ── Template rendering ───────────────────────────────────────────
 // 템플릿의 {{var}} 자리를 실제 값으로 치환
 export function renderTemplate(

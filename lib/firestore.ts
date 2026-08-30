@@ -16,7 +16,7 @@ import {
   ref,
   uploadString,
 } from 'firebase/storage';
-import type { Novel } from '@/types';
+import type { DiscussionQuestion, Novel, SceneSlot } from '@/types';
 import { db, storage } from './firebase';
 import type { PromptTemplateKey } from './prompts';
 
@@ -53,6 +53,20 @@ function stripUndefined(obj: unknown): unknown {
   return obj;
 }
 
+// sceneImages 슬롯(main/optionA/optionB)에서 in-memory 전용 필드(base64/mime)를
+// 빼고 url만 남긴다. 슬롯 자체가 비어 있으면(url도 없으면) 필드를 통째로 뺀다.
+function stripSceneImages(
+  sceneImages: DiscussionQuestion['sceneImages']
+): DiscussionQuestion['sceneImages'] {
+  if (!sceneImages) return sceneImages;
+  const stripped = Object.fromEntries(
+    Object.entries(sceneImages)
+      .filter(([, img]) => img?.url)
+      .map(([slot, img]) => [slot, { url: img?.url }])
+  );
+  return Object.keys(stripped).length > 0 ? stripped : undefined;
+}
+
 export async function saveNovel(novel: Novel): Promise<void> {
   const toSave = stripUndefined({
     ...novel,
@@ -68,6 +82,7 @@ export async function saveNovel(novel: Novel): Promise<void> {
         ...dq,
         sceneImage: undefined,
         sceneMime: undefined,
+        sceneImages: stripSceneImages(dq.sceneImages),
       })),
     })),
   });
@@ -147,6 +162,40 @@ export async function saveSceneImage(
           discussionQuestions: p.discussionQuestions.map((dq) =>
             dq.id === dqId
               ? { ...dq, sceneImageUrl: url, sceneImage: undefined }
+              : dq
+          ),
+        }
+  );
+  await updateDoc(doc(db, NOVELS, novel.id), { parts: updatedParts });
+  return url;
+}
+
+// Upload one scene slot image (본문/Option A/Option B) and update DQ in Firestore
+export async function saveDQSceneImage(
+  novel: Novel,
+  partId: string,
+  dqId: string,
+  slot: SceneSlot,
+  base64: string,
+  mimeType: string
+): Promise<string> {
+  const path = `novels/${novel.id}/scenes/${dqId}/${slot}`;
+  const url = await uploadImage(path, base64, mimeType);
+
+  const updatedParts = novel.parts.map((p) =>
+    p.id !== partId
+      ? p
+      : {
+          ...p,
+          discussionQuestions: p.discussionQuestions.map((dq) =>
+            dq.id === dqId
+              ? {
+                  ...dq,
+                  sceneImages: {
+                    ...dq.sceneImages,
+                    [slot]: { url },
+                  },
+                }
               : dq
           ),
         }
