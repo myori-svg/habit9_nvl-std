@@ -34,12 +34,26 @@ export interface NovelPart {
   discussionQuestions: DiscussionQuestion[];
 }
 
+export type SceneSlot = 'main' | 'optionA' | 'optionB';
+
+export interface SceneImage {
+  base64?: string; // in-memory only
+  mime?: string;
+  url?: string; // Firebase Storage URL (persistent)
+}
+
 export interface DiscussionQuestion {
   id: string;
   text: string;
   compositionPrompt: string;
+  // 구도 프롬프트의 3분할(본문/Option A/Option B) 구조를 그대로 따라가는
+  // 장면 이미지 슬롯. Auto Mode 파이프라인이 채움.
+  sceneImages?: Partial<Record<SceneSlot, SceneImage>>;
+  /** @deprecated sceneImages.main으로 대체됨. 기존에 저장된 문서 호환용으로만 남김. */
   sceneImage?: string; // in-memory only
+  /** @deprecated sceneImages.main으로 대체됨. */
   sceneMime?: string;
+  /** @deprecated sceneImages.main으로 대체됨. */
   sceneImageUrl?: string; // Firebase Storage URL (persistent)
 }
 

@@ -216,12 +216,6 @@ textarea.input-field {
   display: none;
 }
 
-.work-panel-grid {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 24px;
-}
-
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
@@ -247,8 +241,5 @@ textarea.input-field {
   .mobile-menu-btn,
   .sidebar-close-btn {
     display: inline-flex;
-  }
-  .work-panel-grid {
-    grid-template-columns: 1fr;
   }
 }

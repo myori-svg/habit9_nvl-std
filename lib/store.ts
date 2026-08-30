@@ -5,9 +5,11 @@ import type {
   DiscussionQuestion,
   HistoryEntry,
   Novel,
+  SceneSlot,
 } from '@/types';
 import {
   deleteNovel as fbDeleteNovel,
+  saveDQSceneImage as fbSaveDQSceneImage,
   savePromptTemplate as fbSavePromptTemplate,
   saveCharacterImage,
   saveNovel,
@@ -49,7 +51,7 @@ interface AppStore {
     novelId: string,
     partId: string,
     questions: { text: string; compositionPrompt?: string }[]
-  ) => Promise<void>;
+  ) => Promise<DiscussionQuestion[]>;
   addChapterParts: (
     novelId: string,
     chapters: { label: string; content: string }[]
@@ -58,6 +60,14 @@ interface AppStore {
     novelId: string,
     partId: string,
     dqId: string,
+    base64: string,
+    mime: string
+  ) => Promise<string>;
+  saveDQSceneImage: (
+    novelId: string,
+    partId: string,
+    dqId: string,
+    slot: SceneSlot,
     base64: string,
     mime: string
   ) => Promise<string>;
@@ -211,26 +221,23 @@ export const useStore = create<AppStore>()(
 
       setPartDQs: async (novelId, partId, questions) => {
         const novel = get().novels.find((n) => n.id === novelId);
-        if (!novel) return;
+        if (!novel) return [];
+        const newDQs = questions.map((q) => ({
+          id: crypto.randomUUID(),
+          text: q.text,
+          compositionPrompt: q.compositionPrompt ?? '',
+        }));
         const updated = {
           ...novel,
           parts: novel.parts.map((p) =>
-            p.id !== partId
-              ? p
-              : {
-                  ...p,
-                  discussionQuestions: questions.map((q) => ({
-                    id: crypto.randomUUID(),
-                    text: q.text,
-                    compositionPrompt: q.compositionPrompt ?? '',
-                  })),
-                }
+            p.id !== partId ? p : { ...p, discussionQuestions: newDQs }
           ),
         };
         set((s) => ({
           novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
         }));
         await saveNovel(updated);
+        return newDQs;
       },
 
       addChapterParts: async (novelId, chapters) => {
@@ -275,6 +282,49 @@ export const useStore = create<AppStore>()(
                                     sceneMime: mime,
                                   }
                                 : dq
+                          ),
+                        }
+                  ),
+                }
+          ),
+        }));
+        return url;
+      },
+
+      saveDQSceneImage: async (novelId, partId, dqId, slot, base64, mime) => {
+        const novel = get().novels.find((n) => n.id === novelId);
+        if (!novel) return '';
+        const url = await fbSaveDQSceneImage(
+          novel,
+          partId,
+          dqId,
+          slot,
+          base64,
+          mime
+        );
+        // base64/mime은 in-memory에만 유지 (Firebase엔 url만)
+        set((s) => ({
+          novels: s.novels.map((n) =>
+            n.id !== novelId
+              ? n
+              : {
+                  ...n,
+                  parts: n.parts.map((p) =>
+                    p.id !== partId
+                      ? p
+                      : {
+                          ...p,
+                          discussionQuestions: p.discussionQuestions.map(
+                            (dq) =>
+                              dq.id !== dqId
+                                ? dq
+                                : {
+                                    ...dq,
+                                    sceneImages: {
+                                      ...dq.sceneImages,
+                                      [slot]: { base64, mime, url },
+                                    },
+                                  }
                           ),
                         }
                   ),
@@ -349,6 +399,14 @@ export const useStore = create<AppStore>()(
               ...dq,
               sceneImage: undefined,
               sceneMime: undefined,
+              sceneImages: dq.sceneImages
+                ? Object.fromEntries(
+                    Object.entries(dq.sceneImages).map(([slot, img]) => [
+                      slot,
+                      { url: img?.url },
+                    ])
+                  )
+                : undefined,
             })),
           })),
         })),

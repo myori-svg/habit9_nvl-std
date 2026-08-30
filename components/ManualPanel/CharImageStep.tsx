@@ -8,8 +8,11 @@ import {
   getStyleRef,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
+import { withTimeout } from '@/lib/withTimeout';
 import type { Character, Novel } from '@/types';
 import { type AutoGenCharStatus, AutoGenStatusList, PromptBox } from './shared';
+
+const SAVE_TIMEOUT_MS = 45000;
 
 interface Props {
   novel: Novel;
@@ -107,11 +110,16 @@ export default function CharImageStep({
       if (data.error) throw new Error(data.error);
 
       downloadBase64File(data.imageBase64, data.imageMime, char.name);
-      await updateCharacter(novel.id, char.id, {
-        imageBase64: data.imageBase64,
-        imageMime: data.imageMime,
-        imageGenerated: true,
-      });
+      // Firebase Storage에 업로드해서 imageUrl로 영구 저장 (updateCharacter만
+      // 쓰면 base64는 Firestore 저장 시 걸러지고 imageGenerated 플래그만 남아,
+      // 새로고침하면 이미지가 사라지는 문제가 있었음). 업로드가 무한 재시도에
+      // 빠지는 경우가 있어 타임아웃을 걸어둔다.
+      await withTimeout(
+        saveCharImage(novel.id, char.id, data.imageBase64, data.imageMime),
+        SAVE_TIMEOUT_MS,
+        '이미지 저장'
+      );
+      await updateCharacter(novel.id, char.id, { imageGenerated: true });
       setCharStatus((prev) => ({
         ...prev,
         [char.id]: { state: 'done', message: '생성 완료!' },
