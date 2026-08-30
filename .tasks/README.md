@@ -63,6 +63,7 @@
 |티켓|제목|카테고리|
 |-|-|-|
 |[MM-16](done/MM-16.md)|프롬프트 파일 분리|Manual Mode|
+|[MM-20](done/MM-20.md)|DQ 프롬프트 챕터 선택 미반영 버그 수정|Manual Mode|
 |[AI-01](done/AI-01.md)|Gemini SDK 마이그레이션 (전체 API 호출 장애 수정)|AI 연동|
 |[UX-01](done/UX-01.md)|사이드바 숨기기 (모바일 반응형)|공통 UX|
 
