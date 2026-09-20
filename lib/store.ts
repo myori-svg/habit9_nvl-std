@@ -9,6 +9,7 @@ import type {
 } from '@/types';
 import {
   deleteNovel as fbDeleteNovel,
+  deletePromptTemplate as fbDeletePromptTemplate,
   saveDQSceneImage as fbSaveDQSceneImage,
   savePromptTemplate as fbSavePromptTemplate,
   saveCharacterImage,
@@ -17,7 +18,7 @@ import {
   subscribeNovels,
   subscribePromptTemplates,
 } from './firestore';
-import type { PromptTemplateKey } from './prompts';
+import { type PromptTemplateKey, validatePromptTemplate } from './prompts';
 
 interface AppStore {
   novels: Novel[];
@@ -81,6 +82,7 @@ interface AppStore {
     key: PromptTemplateKey,
     template: string
   ) => Promise<void>;
+  resetPromptTemplate: (key: PromptTemplateKey) => Promise<void>;
 
   unsubscribe: (() => void) | null;
   promptUnsubscribe: (() => void) | null;
@@ -349,8 +351,19 @@ export const useStore = create<AppStore>()(
       clearHistory: () => set({ history: [] }),
 
       promptTemplates: {},
+      // 필수 자리표시자가 없거나 정의되지 않은 자리표시자가 있는 템플릿은
+      // 어떤 경로로 호출돼도 저장하지 않는다.
       savePromptTemplate: async (key, template) => {
+        const { missing, unknown } = validatePromptTemplate(key, template);
+        if (missing.length > 0 || unknown.length > 0) {
+          throw new Error(
+            `템플릿을 저장할 수 없어요 — 빠진 자리표시자: ${missing.join(', ') || '없음'}, 알 수 없는 자리표시자: ${unknown.join(', ') || '없음'}`
+          );
+        }
         await fbSavePromptTemplate(key, template);
+      },
+      resetPromptTemplate: async (key) => {
+        await fbDeletePromptTemplate(key);
       },
 
       unsubscribe: null,

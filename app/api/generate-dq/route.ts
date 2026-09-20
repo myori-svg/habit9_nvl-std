@@ -6,9 +6,18 @@ import {
   requireText,
 } from '@/lib/gemini';
 import {
+  assembleCompositionText,
+  assembleQuestionText,
+  buildCompositionResponseSchema,
+  normalizeCharacterNames,
+  parseCompositionResponse,
+  parseQuestionsResponse,
+  QUESTIONS_RESPONSE_SCHEMA,
+} from '@/lib/output-format';
+import {
   buildCompositionPrompt,
   buildDQPrompt,
-  DEFAULT_PROMPT_TEMPLATES,
+  resolvePromptTemplate,
 } from '@/lib/prompts';
 
 export async function POST(req: NextRequest) {
@@ -16,6 +25,7 @@ export async function POST(req: NextRequest) {
     novelTitle,
     partContent,
     characterNames,
+    promptedCharacterNames,
     dqTemplate,
     compositionTemplate,
   } = await req.json();
@@ -34,44 +44,60 @@ export async function POST(req: NextRequest) {
     const ai = getGenAI();
     const model = 'gemini-3.6-flash';
     const config = { safetySettings: PERMISSIVE_SAFETY_SETTINGS };
+    const names: string[] = characterNames ?? [];
+    const promptedNames: string[] = promptedCharacterNames ?? [];
 
-    // ── Step 1: Discussion Questions ──────────────────────────────
-    const dqPrompt = buildDQPrompt(
-      novelTitle,
-      partContent,
-      dqTemplate ?? DEFAULT_PROMPT_TEMPLATES.dq
-    );
+    // ── Step 1: Discussion Questions (응답 구조는 스키마로 강제) ──────
     const dqResult = await generateContentWithRetry(ai, {
       model,
-      contents: `${dqPrompt}
-
-Return ONLY a JSON array of question strings, no markdown fences:
-["Question 1", "Question 2"]`,
-      config,
+      contents: buildDQPrompt(
+        novelTitle,
+        partContent,
+        resolvePromptTemplate('dq', dqTemplate).template
+      ),
+      config: {
+        ...config,
+        responseMimeType: 'application/json',
+        responseJsonSchema: QUESTIONS_RESPONSE_SCHEMA,
+      },
     });
-    const dqText = requireText(dqResult)
-      .trim()
-      .replace(/```json|```/g, '')
-      .trim();
-    const questions: string[] = JSON.parse(dqText);
+    const questionTexts = parseQuestionsResponse(requireText(dqResult)).map(
+      assembleQuestionText
+    );
 
     // ── Step 2: Composition prompt per DQ (기존 등록된 캐릭터만 사용) ──
+    const compositionTemplateText = resolvePromptTemplate(
+      'composition',
+      compositionTemplate
+    ).template;
+    const compositionConfig = {
+      ...config,
+      responseMimeType: 'application/json',
+      responseJsonSchema: buildCompositionResponseSchema(names),
+    };
+
     const discussionQuestions = [];
-    for (const q of questions) {
-      const compositionPrompt = buildCompositionPrompt(
-        q,
-        compositionTemplate ?? DEFAULT_PROMPT_TEMPLATES.composition,
-        characterNames
-      );
+    for (const questionText of questionTexts) {
       const compResult = await generateContentWithRetry(ai, {
         model,
-        contents: compositionPrompt,
-        config,
+        contents: buildCompositionPrompt(
+          questionText,
+          compositionTemplateText,
+          names,
+          promptedNames
+        ),
+        config: compositionConfig,
       });
       discussionQuestions.push({
         id: crypto.randomUUID(),
-        text: q,
-        compositionPrompt: requireText(compResult).trim(),
+        text: questionText,
+        compositionPrompt: normalizeCharacterNames(
+          assembleCompositionText(
+            questionText,
+            parseCompositionResponse(requireText(compResult))
+          ),
+          promptedNames
+        ),
       });
     }
 

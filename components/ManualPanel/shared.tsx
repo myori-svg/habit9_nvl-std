@@ -1,7 +1,17 @@
 'use client';
 import { Check, Copy, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { type PromptTemplateKey, reverseTemplate } from '@/lib/prompts';
+import {
+  normalizeCharacterNames,
+  splitQuestionBlocks,
+} from '@/lib/output-format';
+import {
+  DEFAULT_PROMPT_TEMPLATES,
+  getPromptedCharacterNames,
+  type PromptTemplateKey,
+  TEMPLATE_VARIABLES,
+  validatePromptTemplate,
+} from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 
@@ -151,40 +161,179 @@ function CopyButton({
   );
 }
 
-function SaveTemplateButton({
-  onSave,
-  saved,
-  disabled,
-  disabledReason,
+// 저장된 커스텀 템플릿에 필수 자리표시자가 없어서 기본 템플릿으로 대체 중임을 알린다.
+export function TemplateFallbackNotice({
+  templateName,
+  missing,
 }: {
-  onSave: () => void;
-  saved: boolean;
-  disabled: boolean;
-  disabledReason?: string;
+  templateName: string;
+  missing: string[];
 }) {
+  if (missing.length === 0) return null;
   return (
-    <button
-      type="button"
-      onClick={onSave}
-      disabled={disabled}
-      title={disabled ? disabledReason : undefined}
-      className="btn-ghost"
+    <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
+        marginBottom: 12,
+        padding: '10px 14px',
+        background: '#fff5f5',
         fontSize: 12,
-        padding: '6px 12px',
+        lineHeight: 1.6,
+        color: 'var(--crimson)',
       }}
     >
-      {saved ? (
-        <>
-          <Check size={12} style={{ color: 'var(--sage)' }} /> Saved!
-        </>
-      ) : (
-        '템플릿으로 저장'
+      저장된 {templateName} 템플릿에 {missing.map((m) => `{{${m}}}`).join(', ')}{' '}
+      자리가 없어서, 지금은 기본 템플릿으로 대신 만들고 있어요.
+    </div>
+  );
+}
+
+// 저장된 템플릿을 {{자리표시자}}가 보이는 원본 그대로 편집한다. 화면에 조립된
+// 프롬프트에서 자리표시자를 역추적하지 않고 입력한 원본을 그대로 저장하며, 필수
+// 자리표시자가 빠졌거나 정의되지 않은 자리표시자가 있으면 저장하지 못한다.
+function TemplateEditor({ templateKey }: { templateKey: PromptTemplateKey }) {
+  const { promptTemplates, savePromptTemplate, resetPromptTemplate } =
+    useStore();
+  const stored = promptTemplates[templateKey];
+  const base = stored ?? DEFAULT_PROMPT_TEMPLATES[templateKey];
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setDraft(base);
+  }, [base]);
+
+  const { missing, unknown } = validatePromptTemplate(templateKey, draft);
+  const canSave =
+    draft.trim() !== '' &&
+    draft !== base &&
+    missing.length === 0 &&
+    unknown.length === 0;
+  const formatManagedByCode =
+    templateKey === 'dq' || templateKey === 'composition';
+
+  const handleSave = async () => {
+    setError('');
+    try {
+      await savePromptTemplate(templateKey, draft);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm('저장된 양식을 지우고 기본 양식으로 되돌릴까요?'))
+      return;
+    setError('');
+    try {
+      await resetPromptTemplate(templateKey);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        type="button"
+        className="btn-ghost"
+        onClick={() => setOpen((v) => !v)}
+        style={{ fontSize: 12, padding: '6px 12px' }}
+      >
+        {open ? '양식 편집 닫기' : '양식 편집'}
+      </button>
+      {open && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 16,
+            background: 'var(--parchment)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div
+            style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--ink-soft)' }}
+          >
+            여기서 저장한 양식은 모든 소설에 공통으로 적용돼요.
+            {formatManagedByCode &&
+              ' 출력 형식(구분선·코드블럭 등)은 코드가 프롬프트 뒤에 자동으로 붙이니 여기에는 적지 않아도 돼요.'}
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              fontSize: 12,
+              color: 'var(--ink-soft)',
+            }}
+          >
+            {TEMPLATE_VARIABLES[templateKey].map((v) => (
+              <div key={v.name}>
+                <code>{`{{${v.name}}}`}</code> — {v.label}
+                {v.required && (
+                  <span style={{ color: 'var(--crimson)' }}> · 필수</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="input-field"
+            style={{
+              fontSize: 12,
+              lineHeight: 1.7,
+              height: 260,
+              width: '100%',
+              resize: 'vertical',
+              fontFamily: 'DM Sans, sans-serif',
+              boxSizing: 'border-box',
+            }}
+          />
+          {missing.length > 0 && (
+            <div style={{ fontSize: 12, color: 'var(--crimson)' }}>
+              필수 자리표시자가 빠졌어요:{' '}
+              {missing.map((m) => `{{${m}}}`).join(', ')}
+            </div>
+          )}
+          {unknown.length > 0 && (
+            <div style={{ fontSize: 12, color: 'var(--crimson)' }}>
+              알 수 없는 자리표시자예요 (오타인지 확인해주세요):{' '}
+              {unknown.map((m) => `{{${m}}}`).join(', ')}
+            </div>
+          )}
+          {error && (
+            <div style={{ fontSize: 12, color: 'var(--crimson)' }}>{error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSave}
+              disabled={!canSave}
+              style={{ fontSize: 12, padding: '7px 16px' }}
+            >
+              {saved ? 'Saved!' : '양식 저장'}
+            </button>
+            {stored !== undefined && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={handleReset}
+                style={{ fontSize: 12, padding: '7px 16px' }}
+              >
+                기본 양식으로 되돌리기
+              </button>
+            )}
+          </div>
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -192,18 +341,19 @@ export function PromptBox({
   prompt,
   label,
   templateKey,
-  vars,
+  appendix,
 }: {
   prompt: string;
   label?: string;
-  // 지정하면 편집한 프롬프트를 "템플릿으로 저장" 가능해짐
+  // 지정하면 프롬프트 아래에 해당 템플릿의 원본 편집 화면이 붙는다. 위 텍스트 상자의
+  // 수정은 이번 복사에만 쓰이고 템플릿에는 저장되지 않는다.
   templateKey?: PromptTemplateKey;
-  vars?: Record<string, string>;
+  // 템플릿과 별개로 코드가 소유하는 출력 형식 안내. 복사할 때 프롬프트 뒤에
+  // 붙고, 편집·템플릿 저장 대상이 아니다.
+  appendix?: string;
 }) {
-  const { savePromptTemplate } = useStore();
   const [copied, setCopied] = useState(false);
   const [value, setValue] = useState(prompt);
-  const [saved, setSaved] = useState(false);
 
   // 원본 prompt가 바뀌면 (다른 소설/캐릭터 선택 등) 편집 내용을 최신 값으로 리셋
   useEffect(() => {
@@ -211,26 +361,10 @@ export function PromptBox({
   }, [prompt]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(value);
+    navigator.clipboard.writeText(appendix ? `${value}\n\n${appendix}` : value);
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
-
-  const handleSaveTemplate = async () => {
-    if (!templateKey) return;
-    const template = reverseTemplate(value, vars ?? {});
-    await savePromptTemplate(templateKey, template);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  // vars 값이 비어 있으면(예: 챕터 미선택) reverseTemplate이 그 값을
-  // 되돌리지 못해서, 화면에 보이던 placeholder 문구가 {{변수}} 자리에
-  // 그대로 굳어 저장된다 — 그 뒤로는 뭘 선택해도 프롬프트에 반영이 안 되는
-  // 버그가 됨. 그런 상태에서는 저장 자체를 막는다.
-  const emptyVarKeys = Object.entries(vars ?? {})
-    .filter(([, v]) => !v)
-    .map(([k]) => k);
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -276,21 +410,40 @@ export function PromptBox({
             gap: 6,
           }}
         >
-          {templateKey && (
-            <SaveTemplateButton
-              onSave={handleSaveTemplate}
-              saved={saved}
-              disabled={!value.trim() || emptyVarKeys.length > 0}
-              disabledReason={
-                emptyVarKeys.length > 0
-                  ? '아직 안 채워진 항목이 있어서 템플릿으로 저장할 수 없어요 (예: 챕터를 먼저 선택해주세요). 이 상태로 저장하면 다음부터 항상 지금 보이는 빈 문구가 고정돼버려요.'
-                  : undefined
-              }
-            />
-          )}
           <CopyButton onCopy={handleCopy} copied={copied} />
         </div>
       </div>
+
+      {appendix && (
+        <div style={{ marginTop: 8 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--ink-soft)',
+              marginBottom: 4,
+            }}
+          >
+            출력 형식 — 복사할 때 프롬프트 뒤에 자동으로 함께 들어가요
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              padding: '12px 16px',
+              background: 'var(--cream)',
+              color: 'var(--ink-soft)',
+              fontSize: 11,
+              lineHeight: 1.6,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: 'DM Sans, sans-serif',
+            }}
+          >
+            {appendix}
+          </pre>
+        </div>
+      )}
+
+      {templateKey && <TemplateEditor templateKey={templateKey} />}
 
       {copied && (
         // biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss overlay, not a keyboard-operable widget
@@ -413,13 +566,11 @@ export function SaveCompositionBox({
   const part = novel.parts.find((p) => p.id === compPartId);
   if (!part || part.discussionQuestions.length === 0) return null;
 
-  // === 구분자로 자동 파싱
-  const parsed = value.trim()
-    ? value
-        .split(/\n*===\n*/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
+  // === 구분자로 자동 파싱. 프롬프트가 등록된 캐릭터는 등록된 이름 그대로 저장한다.
+  const promptedNames = getPromptedCharacterNames(novel.characters);
+  const parsed = splitQuestionBlocks(value).map((item) =>
+    normalizeCharacterNames(item, promptedNames)
+  );
 
   const dqs = part.discussionQuestions;
   const countMatch = parsed.length === dqs.length;

@@ -229,3 +229,10 @@ export async function savePromptTemplate(
     updatedAt: new Date().toISOString(),
   });
 }
+
+// 저장된 커스텀 템플릿을 지우면 그 키는 코드의 기본 템플릿으로 돌아간다.
+export async function deletePromptTemplate(
+  key: PromptTemplateKey
+): Promise<void> {
+  await deleteDoc(doc(db, PROMPT_TEMPLATES, key));
+}

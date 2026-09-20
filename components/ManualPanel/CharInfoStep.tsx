@@ -2,14 +2,14 @@
 import { Check } from 'lucide-react';
 import {
   buildCharInfoPrompt,
-  DEFAULT_PROMPT_TEMPLATES,
   extractCharNames,
+  resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 import CharImageStep from './CharImageStep';
 import CharPromptStep from './CharPromptStep';
-import { PromptBox, SaveCharInfoBox } from './shared';
+import { PromptBox, SaveCharInfoBox, TemplateFallbackNotice } from './shared';
 
 interface Props {
   novel: Novel;
@@ -65,8 +65,11 @@ export default function CharInfoStep({
   setUploadDone,
 }: Props) {
   const { updateNovel, promptTemplates } = useStore();
-  const charInfoTemplate =
-    promptTemplates.charInfo ?? DEFAULT_PROMPT_TEMPLATES.charInfo;
+  const charInfoTemplateResolved = resolvePromptTemplate(
+    'charInfo',
+    promptTemplates.charInfo
+  );
+  const charInfoTemplate = charInfoTemplateResolved.template;
 
   const charInfoPrompts = charInfoNames.map((name) => ({
     name,
@@ -303,12 +306,15 @@ export default function CharInfoStep({
               );
             })}
           </div>
+          <TemplateFallbackNotice
+            templateName="캐릭터 정보"
+            missing={charInfoTemplateResolved.missing}
+          />
           {charInfoPrompts.length === 1 && (
             <PromptBox
               label="Gemini에 붙여넣을 프롬프트"
               prompt={charInfoPrompts[0].prompt}
               templateKey="charInfo"
-              vars={{ novelTitle: novel.title, name: charInfoPrompts[0].name }}
             />
           )}
           {charInfoPrompts.length > 1 && (
