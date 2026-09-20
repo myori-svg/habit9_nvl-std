@@ -33,6 +33,7 @@
 |[MM-17](active/MM-17.md)|SaveResultBox useStore 패턴 수정|Manual Mode|미구현|
 |[MM-18](active/MM-18.md)|프롬프트 인라인 편집 UI|Manual Mode|미구현|
 |[MM-08](active/MM-08.md)|파이프라인 재설계|Manual Mode|미구현|
+|[MM-21](active/MM-21.md)|출력 형식을 코드가 소유하도록 분리 (DQ·구도)|Manual/Auto Mode|진행 중 (1~4단계 완료)|
 
 ## 🟢 나중에 (backlog)
 
