@@ -9,6 +9,7 @@ import {
   assembleCompositionText,
   assembleQuestionText,
   buildCompositionResponseSchema,
+  normalizeCharacterNames,
   parseCompositionResponse,
   parseQuestionsResponse,
   QUESTIONS_RESPONSE_SCHEMA,
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
     novelTitle,
     partContent,
     characterNames,
+    promptedCharacterNames,
     dqTemplate,
     compositionTemplate,
   } = await req.json();
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
     const model = 'gemini-3.6-flash';
     const config = { safetySettings: PERMISSIVE_SAFETY_SETTINGS };
     const names: string[] = characterNames ?? [];
+    const promptedNames: string[] = promptedCharacterNames ?? [];
 
     // ── Step 1: Discussion Questions (응답 구조는 스키마로 강제) ──────
     const dqResult = await generateContentWithRetry(ai, {
@@ -80,16 +83,20 @@ export async function POST(req: NextRequest) {
         contents: buildCompositionPrompt(
           questionText,
           compositionTemplateText,
-          names
+          names,
+          promptedNames
         ),
         config: compositionConfig,
       });
       discussionQuestions.push({
         id: crypto.randomUUID(),
         text: questionText,
-        compositionPrompt: assembleCompositionText(
-          questionText,
-          parseCompositionResponse(requireText(compResult))
+        compositionPrompt: normalizeCharacterNames(
+          assembleCompositionText(
+            questionText,
+            parseCompositionResponse(requireText(compResult))
+          ),
+          promptedNames
         ),
       });
     }

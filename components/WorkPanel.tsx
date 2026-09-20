@@ -2,7 +2,11 @@
 import { Download, RefreshCw, Sparkles, Square } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { splitCompositionScenes } from '@/lib/output-format';
-import { extractCharNames, resolvePromptTemplate } from '@/lib/prompts';
+import {
+  extractCharNames,
+  getPromptedCharacterNames,
+  resolvePromptTemplate,
+} from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import { withTimeout } from '@/lib/withTimeout';
 import type {
@@ -216,6 +220,7 @@ export default function WorkPanel({ novel }: Props) {
           novelTitle: novel.title,
           partContent: selectedPart.content,
           characterNames: novel.characters.map((c) => c.name),
+          promptedCharacterNames: getPromptedCharacterNames(novel.characters),
           dqTemplate: promptTemplates.dq,
           compositionTemplate: promptTemplates.composition,
         }),

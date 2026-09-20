@@ -215,6 +215,27 @@ export function parseCompositionResponse(text: string): CompositionItem {
   };
 }
 
+function characterNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+// {이름} 표기 중 등록된 캐릭터 이름과 대소문자·공백만 다른 것을 등록된 이름
+// 그대로로 맞춘다. 장면 이미지 생성이 캐릭터 프롬프트와 이미지를 이름으로 찾기
+// 때문에, 프롬프트가 등록된 캐릭터는 어떤 경로로 만든 구도 프롬프트든 이 보정을
+// 거쳐 저장한다. 등록되지 않은 이름과 {} 밖의 표기는 건드리지 않는다.
+export function normalizeCharacterNames(
+  text: string,
+  registeredNames: string[]
+): string {
+  const registered = new Map(
+    registeredNames.map((name) => [characterNameKey(name), name])
+  );
+  return text.replace(/\{([^{}]+)\}/g, (braced, inner: string) => {
+    const exact = registered.get(characterNameKey(inner));
+    return exact ? `{${exact}}` : braced;
+  });
+}
+
 function withoutOptionLabel(text: string, option: 'A' | 'B'): string {
   return text.replace(new RegExp(`^Option\\s*${option}\\s*:\\s*`, 'i'), '');
 }

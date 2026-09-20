@@ -291,18 +291,36 @@ export function buildDQPrompt(
   });
 }
 
-export function buildCharacterNote(characterNames?: string[]): string {
-  return characterNames && characterNames.length > 0
-    ? `\n등장 가능한 캐릭터는 다음으로 한정합니다: ${characterNames.join(', ')}. 이 목록에 없는 새 캐릭터를 만들지 마세요.`
-    : '';
+// 캐릭터 프롬프트(textPrompt)가 등록돼 있는 캐릭터만 골라 이름을 돌려준다.
+// 장면 이미지 생성은 이 프롬프트와 이미지를 이름으로 찾아 붙이므로, 구도
+// 프롬프트에서 이 캐릭터들은 등록된 이름 그대로 표기돼야 한다.
+export function getPromptedCharacterNames(
+  characters: { name: string; textPrompt?: string }[]
+): string[] {
+  return characters.filter((c) => c.textPrompt?.trim()).map((c) => c.name);
+}
+
+export function buildCharacterNote(
+  characterNames?: string[],
+  promptedCharacterNames?: string[]
+): string {
+  if (!characterNames || characterNames.length === 0) return '';
+  const limitNote = `\n등장 가능한 캐릭터는 다음으로 한정합니다: ${characterNames.join(', ')}. 이 목록에 없는 새 캐릭터를 만들지 마세요.`;
+  if (!promptedCharacterNames || promptedCharacterNames.length === 0)
+    return limitNote;
+  return `${limitNote}\n이 중 ${promptedCharacterNames.join(', ')}은(는) 이미 캐릭터 프롬프트가 등록돼 있으므로, 등장시킬 때 반드시 위에 적힌 이름 그대로 {}로 감싸서 표기할 것 (철자·대소문자·띄어쓰기를 바꾸거나 별칭·줄임말로 쓰지 말 것).`;
 }
 
 export function buildCompositionPrompt(
   questionItems: string,
   template: string = DEFAULT_PROMPT_TEMPLATES.composition,
-  characterNames?: string[]
+  characterNames?: string[],
+  promptedCharacterNames?: string[]
 ): string {
-  const characterNote = buildCharacterNote(characterNames);
+  const characterNote = buildCharacterNote(
+    characterNames,
+    promptedCharacterNames
+  );
   return renderTemplate(template, { questionItems, characterNote });
 }
 

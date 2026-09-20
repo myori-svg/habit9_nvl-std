@@ -3,6 +3,7 @@ import { QUESTION_DELIMITER } from '@/lib/output-format';
 import {
   buildCompositionPrompt,
   COMPOSITION_OUTPUT_FORMAT_INSTRUCTION,
+  getPromptedCharacterNames,
   resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
@@ -47,7 +48,8 @@ export default function CompositionStep({
   const compositionPrompt = buildCompositionPrompt(
     questionItems,
     compositionTemplate.template,
-    characterNames
+    characterNames,
+    getPromptedCharacterNames(novel.characters)
   );
 
   return (

@@ -1,9 +1,13 @@
 'use client';
 import { Check, Copy, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { splitQuestionBlocks } from '@/lib/output-format';
+import {
+  normalizeCharacterNames,
+  splitQuestionBlocks,
+} from '@/lib/output-format';
 import {
   DEFAULT_PROMPT_TEMPLATES,
+  getPromptedCharacterNames,
   type PromptTemplateKey,
   TEMPLATE_VARIABLES,
   validatePromptTemplate,
@@ -562,8 +566,11 @@ export function SaveCompositionBox({
   const part = novel.parts.find((p) => p.id === compPartId);
   if (!part || part.discussionQuestions.length === 0) return null;
 
-  // === 구분자로 자동 파싱
-  const parsed = splitQuestionBlocks(value);
+  // === 구분자로 자동 파싱. 프롬프트가 등록된 캐릭터는 등록된 이름 그대로 저장한다.
+  const promptedNames = getPromptedCharacterNames(novel.characters);
+  const parsed = splitQuestionBlocks(value).map((item) =>
+    normalizeCharacterNames(item, promptedNames)
+  );
 
   const dqs = part.discussionQuestions;
   const countMatch = parsed.length === dqs.length;
