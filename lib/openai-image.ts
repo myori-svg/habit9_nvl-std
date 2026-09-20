@@ -11,6 +11,10 @@ const LANDSCAPE_SIZE = '1536x864';
 
 const IMAGE_QUALITY = 'medium';
 
+// 같은 화질에서 PNG보다 훨씬 작아서, 응답·저장·전송 크기 한도에 여유를 준다.
+const OUTPUT_FORMAT = 'webp';
+const OUTPUT_COMPRESSION = 85;
+
 export type ReferenceImage = { base64: string; mime: string };
 
 export type GeneratedImage = { imageBase64: string; imageMime: string };
@@ -49,6 +53,8 @@ export async function generateImage(
     form.append('prompt', prompt);
     form.append('size', LANDSCAPE_SIZE);
     form.append('quality', IMAGE_QUALITY);
+    form.append('output_format', OUTPUT_FORMAT);
+    form.append('output_compression', String(OUTPUT_COMPRESSION));
     form.append('moderation', 'low');
     referenceImages.forEach((img, i) => {
       const bytes = Buffer.from(img.base64, 'base64');
@@ -72,6 +78,8 @@ export async function generateImage(
         prompt,
         size: LANDSCAPE_SIZE,
         quality: IMAGE_QUALITY,
+        output_format: OUTPUT_FORMAT,
+        output_compression: OUTPUT_COMPRESSION,
         moderation: 'low',
       }),
     });
@@ -82,5 +90,5 @@ export async function generateImage(
   const json = (await res.json()) as { data?: { b64_json?: string }[] };
   const imageBase64 = json.data?.[0]?.b64_json;
   if (!imageBase64) throw new Error('OpenAI가 이미지를 반환하지 않았습니다');
-  return { imageBase64, imageMime: 'image/png' };
+  return { imageBase64, imageMime: `image/${OUTPUT_FORMAT}` };
 }
