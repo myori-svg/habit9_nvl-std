@@ -5,16 +5,13 @@ import type {
   DiscussionQuestion,
   HistoryEntry,
   Novel,
-  SceneSlot,
 } from '@/types';
 import {
   deleteNovel as fbDeleteNovel,
   deletePromptTemplate as fbDeletePromptTemplate,
-  saveDQSceneImage as fbSaveDQSceneImage,
   savePromptTemplate as fbSavePromptTemplate,
   saveCharacterImage,
   saveNovel,
-  saveSceneImage,
   subscribeNovels,
   subscribePromptTemplates,
 } from './firestore';
@@ -57,21 +54,6 @@ interface AppStore {
     novelId: string,
     chapters: { label: string; content: string }[]
   ) => Promise<void>;
-  saveScene: (
-    novelId: string,
-    partId: string,
-    dqId: string,
-    base64: string,
-    mime: string
-  ) => Promise<string>;
-  saveDQSceneImage: (
-    novelId: string,
-    partId: string,
-    dqId: string,
-    slot: SceneSlot,
-    base64: string,
-    mime: string
-  ) => Promise<string>;
 
   history: HistoryEntry[];
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void;
@@ -175,6 +157,22 @@ export const useStore = create<AppStore>()(
       saveCharImage: async (novelId, charId, base64, mime) => {
         const novel = get().novels.find((n) => n.id === novelId);
         if (!novel) return '';
+        // 저장소 업로드가 실패해도 이번 세션에서는 이 이미지를 참조 이미지로
+        // 쓸 수 있도록 in-memory에 먼저 반영한다.
+        set((s) => ({
+          novels: s.novels.map((n) =>
+            n.id !== novelId
+              ? n
+              : {
+                  ...n,
+                  characters: n.characters.map((c) =>
+                    c.id === charId
+                      ? { ...c, imageBase64: base64, imageMime: mime }
+                      : c
+                  ),
+                }
+          ),
+        }));
         const url = await saveCharacterImage(novel, charId, base64, mime);
         // imageBase64는 in-memory에만 저장 (Firebase엔 URL만)
         set((s) => ({
@@ -256,84 +254,6 @@ export const useStore = create<AppStore>()(
           novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
         }));
         await saveNovel(updated);
-      },
-
-      saveScene: async (novelId, partId, dqId, base64, mime) => {
-        const novel = get().novels.find((n) => n.id === novelId);
-        if (!novel) return '';
-        const url = await saveSceneImage(novel, partId, dqId, base64, mime);
-        // sceneImage는 in-memory에만 저장
-        set((s) => ({
-          novels: s.novels.map((n) =>
-            n.id !== novelId
-              ? n
-              : {
-                  ...n,
-                  parts: n.parts.map((p) =>
-                    p.id !== partId
-                      ? p
-                      : {
-                          ...p,
-                          discussionQuestions: p.discussionQuestions.map(
-                            (dq) =>
-                              dq.id === dqId
-                                ? {
-                                    ...dq,
-                                    sceneImageUrl: url,
-                                    sceneImage: base64,
-                                    sceneMime: mime,
-                                  }
-                                : dq
-                          ),
-                        }
-                  ),
-                }
-          ),
-        }));
-        return url;
-      },
-
-      saveDQSceneImage: async (novelId, partId, dqId, slot, base64, mime) => {
-        const novel = get().novels.find((n) => n.id === novelId);
-        if (!novel) return '';
-        const url = await fbSaveDQSceneImage(
-          novel,
-          partId,
-          dqId,
-          slot,
-          base64,
-          mime
-        );
-        // base64/mime은 in-memory에만 유지 (Firebase엔 url만)
-        set((s) => ({
-          novels: s.novels.map((n) =>
-            n.id !== novelId
-              ? n
-              : {
-                  ...n,
-                  parts: n.parts.map((p) =>
-                    p.id !== partId
-                      ? p
-                      : {
-                          ...p,
-                          discussionQuestions: p.discussionQuestions.map(
-                            (dq) =>
-                              dq.id !== dqId
-                                ? dq
-                                : {
-                                    ...dq,
-                                    sceneImages: {
-                                      ...dq.sceneImages,
-                                      [slot]: { base64, mime, url },
-                                    },
-                                  }
-                          ),
-                        }
-                  ),
-                }
-          ),
-        }));
-        return url;
       },
 
       history: [],

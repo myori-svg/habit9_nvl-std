@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
+import { fetchBlobImage } from '@/lib/image-url';
 import {
   generateImage,
   hasOpenAIKey,
@@ -41,15 +42,32 @@ ${compositionPrompt}
 <character prompts>
 ${charPromptsText}`;
 
+    // 캐릭터 이미지는 저장된 주소(imageUrl)로 오면 서버가 직접 내려받고, 저장 전인
+    // 이미지는 base64로 온다.
+    const characterImages: ReferenceImage[] = (
+      await Promise.all(
+        characters.map(
+          async (c: {
+            imageUrl?: string;
+            imageBase64?: string;
+            imageMime?: string;
+          }) => {
+            if (c.imageUrl) return fetchBlobImage(c.imageUrl);
+            if (c.imageBase64)
+              return {
+                base64: c.imageBase64,
+                mime: c.imageMime || 'image/png',
+              };
+            return null;
+          }
+        )
+      )
+    ).filter((img): img is ReferenceImage => img !== null);
+
     // 스타일 참조 이미지가 먼저, 캐릭터 이미지가 그 뒤 — 프롬프트의 "first reference image"가 스타일 참조를 가리킨다.
     const refImages: ReferenceImage[] = [
       ...((styleRefImages ?? []) as ReferenceImage[]),
-      ...characters
-        .filter((c: { imageBase64?: string }) => c.imageBase64)
-        .map((c: { imageBase64: string; imageMime?: string }) => ({
-          base64: c.imageBase64,
-          mime: c.imageMime || 'image/png',
-        })),
+      ...characterImages,
     ];
 
     return NextResponse.json(await generateImage(fullPrompt, refImages));
