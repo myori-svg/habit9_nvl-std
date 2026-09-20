@@ -62,7 +62,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         >
           <strong>Models:</strong>
           <br />• Text: <code>gemini-2.5-flash</code>
-          <br />• Image: <code>gemini-2.5-flash-image</code>
+          <br />• Image: <code>gpt-image-2.5-flare</code> (OpenAI)
           <br />
           <strong>Est. cost:</strong> ~$8–10/month for ~60 scene images
         </div>
