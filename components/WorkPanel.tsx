@@ -8,9 +8,7 @@ import {
   resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
-import { withTimeout } from '@/lib/withTimeout';
 import type {
-  Character,
   DiscussionQuestion,
   Novel,
   NovelPart,
@@ -28,7 +26,6 @@ interface Props {
 }
 
 const DQ_GEN_KEY = 'dq-generation';
-const SAVE_TIMEOUT_MS = 45000;
 
 const SLOT_LABELS: Record<SceneSlot, string> = {
   main: '본문',
@@ -66,35 +63,8 @@ function buildWorkItems(dqs: DiscussionQuestion[]): WorkItem[] {
   return items;
 }
 
-// 캐릭터 참고 이미지를 base64로 확보한다. in-memory(imageBase64)가 있으면
-// 그대로 쓰고, 없으면(새로고침 등으로 날아간 경우) 영구 저장된 imageUrl에서
-// 다시 받아온다. 같은 캐릭터를 여러 장면에서 쓸 때 반복 요청하지 않도록 캐싱.
-async function resolveCharImage(
-  char: Character,
-  cache: Map<string, { base64?: string; mime?: string }>
-): Promise<{ base64?: string; mime?: string }> {
-  if (char.imageBase64)
-    return { base64: char.imageBase64, mime: char.imageMime };
-  const cached = cache.get(char.id);
-  if (cached) return cached;
-  if (!char.imageUrl) return {};
-  try {
-    const res = await fetch(
-      `/api/fetch-image?url=${encodeURIComponent(char.imageUrl)}`
-    );
-    if (!res.ok) return {};
-    const { data, mimeType } = await res.json();
-    const resolved = { base64: data as string, mime: mimeType as string };
-    cache.set(char.id, resolved);
-    return resolved;
-  } catch {
-    return {};
-  }
-}
-
 export default function WorkPanel({ novel }: Props) {
-  const { addHistory, promptTemplates, setPartDQs, saveDQSceneImage } =
-    useStore();
+  const { addHistory, promptTemplates, setPartDQs } = useStore();
   const [selectedPartId, setSelectedPartId] = useState<string>(
     novel.parts[0]?.id ?? ''
   );
@@ -104,6 +74,11 @@ export default function WorkPanel({ novel }: Props) {
     Record<string, AutoGenCharStatus>
   >({});
   const [pipelineItems, setPipelineItems] = useState<WorkItem[]>([]);
+  // 이번 세션에서 만든 장면 이미지. 저장소에 저장하지 않으므로 새로고침하면
+  // 사라지고, 그 전까지 화면에 보이며 내려받을 수 있다.
+  const [sessionImages, setSessionImages] = useState<
+    Record<string, { base64: string; mime: string }>
+  >({});
   const stopRequested = useRef(false);
 
   const selectedPart = novel.parts.find((p) => p.id === selectedPartId);
@@ -129,8 +104,7 @@ export default function WorkPanel({ novel }: Props) {
     dqId: string,
     slot: SceneSlot,
     text: string,
-    label: string,
-    charCache: Map<string, { base64?: string; mime?: string }>
+    label: string
   ): Promise<void> => {
     const key = `${dqId}:${slot}`;
     setItemStatus((prev) => ({
@@ -143,16 +117,17 @@ export default function WorkPanel({ novel }: Props) {
           (m) => m.toLowerCase() === c.name.toLowerCase()
         )
       );
-      const resolvedChars = await Promise.all(
-        mentioned.map(async (c) => {
-          const img = await resolveCharImage(c, charCache);
-          return {
-            name: c.name,
-            textPrompt: c.textPrompt,
-            imageBase64: img.base64,
-            imageMime: img.mime,
-          };
-        })
+      // 저장된 이미지 주소가 있으면 주소만 보내고(서버가 직접 내려받음), 아직 저장
+      // 전인 이미지는 base64로 보낸다.
+      const resolvedChars = mentioned.map((c) =>
+        c.imageUrl
+          ? { name: c.name, textPrompt: c.textPrompt, imageUrl: c.imageUrl }
+          : {
+              name: c.name,
+              textPrompt: c.textPrompt,
+              imageBase64: c.imageBase64,
+              imageMime: c.imageMime,
+            }
       );
 
       const res = await fetch('/api/generate-scene', {
@@ -168,18 +143,6 @@ export default function WorkPanel({ novel }: Props) {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      await withTimeout(
-        saveDQSceneImage(
-          novel.id,
-          part.id,
-          dqId,
-          slot,
-          data.imageBase64,
-          data.imageMime
-        ),
-        SAVE_TIMEOUT_MS,
-        '이미지 저장'
-      );
       addHistory({
         novelId: novel.id,
         novelTitle: novel.title,
@@ -189,9 +152,16 @@ export default function WorkPanel({ novel }: Props) {
         imageMime: data.imageMime,
         prompt: text,
       });
+      setSessionImages((prev) => ({
+        ...prev,
+        [key]: { base64: data.imageBase64, mime: data.imageMime },
+      }));
       setItemStatus((prev) => ({
         ...prev,
-        [key]: { state: 'done', message: '완료' },
+        [key]: {
+          state: 'done',
+          message: '완료 — 저장되지 않으니 필요하면 다운로드해 두세요',
+        },
       }));
     } catch (e) {
       setItemStatus((prev) => ({
@@ -253,7 +223,6 @@ export default function WorkPanel({ novel }: Props) {
         ),
       }));
 
-      const charCache = new Map<string, { base64?: string; mime?: string }>();
       for (const item of items) {
         if (stopRequested.current) {
           setItemStatus((prev) => ({
@@ -270,8 +239,7 @@ export default function WorkPanel({ novel }: Props) {
           item.dqId,
           item.slot,
           item.text,
-          item.label,
-          charCache
+          item.label
         );
       }
     } catch (e) {
@@ -304,8 +272,7 @@ export default function WorkPanel({ novel }: Props) {
       dq.id,
       slot,
       text,
-      `${dq.text.slice(0, 30)}… · ${SLOT_LABELS[slot]}`,
-      new Map()
+      `${dq.text.slice(0, 30)}… · ${SLOT_LABELS[slot]}`
     );
   };
 
@@ -495,6 +462,7 @@ export default function WorkPanel({ novel }: Props) {
                   index={i}
                   dq={dq}
                   itemStatus={itemStatus}
+                  sessionImages={sessionImages}
                   onRegenerate={(slot) => handleRegenerateSlot(dq, slot)}
                   onDownload={downloadImage}
                 />
@@ -513,12 +481,14 @@ function DQCard({
   index,
   dq,
   itemStatus,
+  sessionImages,
   onRegenerate,
   onDownload,
 }: {
   index: number;
   dq: DiscussionQuestion;
   itemStatus: Record<string, AutoGenCharStatus>;
+  sessionImages: Record<string, { base64: string; mime: string }>;
   onRegenerate: (slot: SceneSlot) => void;
   onDownload: (base64: string, mime: string, name: string) => void;
 }) {
@@ -554,6 +524,7 @@ function DQCard({
               slot={slot}
               text={text}
               image={dq.sceneImages?.[slot]}
+              session={sessionImages[`${dq.id}:${slot}`]}
               status={itemStatus[`${dq.id}:${slot}`]}
               onRegenerate={() => onRegenerate(slot)}
               onDownload={(base64, mime) =>
@@ -570,6 +541,7 @@ function DQCard({
 function SceneSlotCard({
   slot,
   image,
+  session,
   status,
   onRegenerate,
   onDownload,
@@ -577,13 +549,20 @@ function SceneSlotCard({
   slot: SceneSlot;
   text: string;
   image?: SceneImage;
+  session?: { base64: string; mime: string };
   status?: AutoGenCharStatus;
   onRegenerate: () => void;
   onDownload: (base64: string, mime: string) => void;
 }) {
   const running = status?.state === 'running';
-  const imgSrc = image?.base64
-    ? `data:${image.mime || 'image/png'};base64,${image.base64}`
+  // 이번 세션에서 만든 이미지가 있으면 가장 먼저 보여준다.
+  const shown = session
+    ? { base64: session.base64, mime: session.mime }
+    : image?.base64
+      ? { base64: image.base64, mime: image.mime || 'image/png' }
+      : undefined;
+  const imgSrc = shown
+    ? `data:${shown.mime};base64,${shown.base64}`
     : image?.url;
 
   return (
@@ -627,12 +606,10 @@ function SceneSlotCard({
               gap: 4,
             }}
           >
-            {image?.base64 && (
+            {shown && (
               <button
                 type="button"
-                onClick={() =>
-                  onDownload(image.base64 as string, image.mime || 'image/png')
-                }
+                onClick={() => onDownload(shown.base64, shown.mime)}
                 style={iconBtnStyle}
                 aria-label="다운로드"
               >

@@ -10,6 +10,11 @@ import {
 import { useStore } from '@/lib/store';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Character, Novel } from '@/types';
+
+// 실제 이미지(저장된 주소 또는 이번 세션에서 만든 것)가 있는지. 예전에 저장 없이 남은
+// imageGenerated 표시는 신뢰하지 않는다.
+const hasCharImage = (c: Character) => Boolean(c.imageUrl || c.imageBase64);
+
 import {
   type AutoGenCharStatus,
   AutoGenStatusList,
@@ -75,7 +80,7 @@ export default function CharImageStep({
       let changed = false;
       for (const c of novel.characters) {
         if (!(c.id in next)) {
-          next[c.id] = !c.imageGenerated;
+          next[c.id] = !hasCharImage(c);
           changed = true;
         }
       }
@@ -412,7 +417,7 @@ export default function CharImageStep({
               novel.characters.map((c) => [
                 c.id,
                 charStatus[c.id] ??
-                  (c.imageGenerated
+                  (hasCharImage(c)
                     ? { state: 'done', message: '생성 완료!' }
                     : { state: 'pending' }),
               ])
@@ -446,7 +451,7 @@ export default function CharImageStep({
         >
           {novel.characters.map((c) => (
             <option key={c.id} value={c.name}>
-              {c.name} {c.imageGenerated || c.imageUrl ? '✓' : ''}
+              {c.name} {hasCharImage(c) ? '✓' : ''}
             </option>
           ))}
         </select>
@@ -559,7 +564,7 @@ export default function CharImageStep({
         ) : uploading ? (
           '업로드 중…'
         ) : (
-          'Firebase에 저장'
+          '이미지 저장'
         )}
       </button>
     </div>

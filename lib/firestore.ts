@@ -10,14 +10,9 @@ import {
   type Unsubscribe,
   updateDoc,
 } from 'firebase/firestore';
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadString,
-} from 'firebase/storage';
-import type { DiscussionQuestion, Novel, SceneSlot } from '@/types';
-import { db, storage } from './firebase';
+import type { DiscussionQuestion, Novel } from '@/types';
+import { uploadImageToBlob } from './blob-upload';
+import { db } from './firebase';
 import type { PromptTemplateKey } from './prompts';
 
 // ── Collections ──────────────────────────────────────────────────
@@ -100,107 +95,28 @@ export async function deleteNovel(novelId: string): Promise<void> {
   await deleteDoc(doc(db, NOVELS, novelId));
 }
 
-// ── Image Storage ─────────────────────────────────────────────────
+// ── Image Storage (Vercel Blob) ──────────────────────────────────
 
-// Upload base64 image to Firebase Storage, return download URL
-export async function uploadImage(
-  path: string,
-  base64: string,
-  mimeType: string
-): Promise<string> {
-  const storageRef = ref(storage, path);
-  await uploadString(
-    storageRef,
-    `data:${mimeType};base64,${base64}`,
-    'data_url'
-  );
-  return getDownloadURL(storageRef);
-}
-
-export async function deleteImage(path: string): Promise<void> {
-  try {
-    await deleteObject(ref(storage, path));
-  } catch {
-    // Ignore if file doesn't exist
-  }
-}
-
-// Upload character image and update novel in Firestore
+// 캐릭터 이미지를 Blob에 올리고 imageUrl로 캐릭터 문서에 반영한다. base64·mime은
+// in-memory 전용이라 Firestore에 쓰지 않는다.
 export async function saveCharacterImage(
   novel: Novel,
   charId: string,
   base64: string,
   mimeType: string
 ): Promise<string> {
-  const path = `novels/${novel.id}/characters/${charId}`;
-  const url = await uploadImage(path, base64, mimeType);
-
-  // Update character imageUrl in Firestore
-  const updatedChars = novel.characters.map((c) =>
-    c.id === charId ? { ...c, imageUrl: url, imageBase64: undefined } : c
+  const url = await uploadImageToBlob(
+    `novels/${novel.id}/characters/${charId}`,
+    base64,
+    mimeType
   );
-  await updateDoc(doc(db, NOVELS, novel.id), { characters: updatedChars });
-  return url;
-}
-
-// Upload scene image and update DQ in Firestore
-export async function saveSceneImage(
-  novel: Novel,
-  partId: string,
-  dqId: string,
-  base64: string,
-  mimeType: string
-): Promise<string> {
-  const path = `novels/${novel.id}/scenes/${dqId}`;
-  const url = await uploadImage(path, base64, mimeType);
-
-  const updatedParts = novel.parts.map((p) =>
-    p.id !== partId
-      ? p
-      : {
-          ...p,
-          discussionQuestions: p.discussionQuestions.map((dq) =>
-            dq.id === dqId
-              ? { ...dq, sceneImageUrl: url, sceneImage: undefined }
-              : dq
-          ),
-        }
+  const updatedChars = novel.characters.map(
+    ({ imageBase64: _base64, imageMime: _mime, ...char }) =>
+      char.id === charId ? { ...char, imageUrl: url } : char
   );
-  await updateDoc(doc(db, NOVELS, novel.id), { parts: updatedParts });
-  return url;
-}
-
-// Upload one scene slot image (본문/Option A/Option B) and update DQ in Firestore
-export async function saveDQSceneImage(
-  novel: Novel,
-  partId: string,
-  dqId: string,
-  slot: SceneSlot,
-  base64: string,
-  mimeType: string
-): Promise<string> {
-  const path = `novels/${novel.id}/scenes/${dqId}/${slot}`;
-  const url = await uploadImage(path, base64, mimeType);
-
-  const updatedParts = novel.parts.map((p) =>
-    p.id !== partId
-      ? p
-      : {
-          ...p,
-          discussionQuestions: p.discussionQuestions.map((dq) =>
-            dq.id === dqId
-              ? {
-                  ...dq,
-                  sceneImages: {
-                    ...dq.sceneImages,
-                    [slot]: { url },
-                  },
-                }
-              : dq
-          ),
-        }
-  );
-  await updateDoc(doc(db, NOVELS, novel.id), { parts: updatedParts });
+  await updateDoc(doc(db, NOVELS, novel.id), {
+    characters: stripUndefined(updatedChars),
+  });
   return url;
 }
 
