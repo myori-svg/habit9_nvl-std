@@ -25,6 +25,12 @@ interface AppStore {
   updateNovel: (id: string, data: Partial<Novel>) => Promise<void>;
   addStyleRefImage: (novelId: string, base64: string, mime: string) => void;
   removeStyleRefImage: (novelId: string, imageId: string) => void;
+  replaceStyleRefImage: (
+    novelId: string,
+    imageId: string,
+    base64: string,
+    mime: string
+  ) => void;
   deleteNovel: (id: string) => Promise<void>;
 
   updateCharacter: (
@@ -127,6 +133,21 @@ export const useStore = create<AppStore>()(
                   ...n,
                   styleRefImages: (n.styleRefImages ?? []).filter(
                     (img) => img.id !== imageId
+                  ),
+                }
+              : n
+          ),
+        })),
+
+      // 순서를 유지한 채 이미지만 바꾼다 (참고 이미지는 순서대로 전달되므로).
+      replaceStyleRefImage: (novelId, imageId, base64, mime) =>
+        set((s) => ({
+          novels: s.novels.map((n) =>
+            n.id === novelId
+              ? {
+                  ...n,
+                  styleRefImages: (n.styleRefImages ?? []).map((img) =>
+                    img.id === imageId ? { ...img, base64, mime } : img
                   ),
                 }
               : n

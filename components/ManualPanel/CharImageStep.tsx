@@ -1,5 +1,5 @@
 'use client';
-import { Check, Sparkles, Square, Upload, X } from 'lucide-react';
+import { Check, Sparkles, Square } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { downloadBase64File } from '@/lib/download';
 import {
@@ -10,6 +10,7 @@ import {
 import { useStore } from '@/lib/store';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Character, Novel } from '@/types';
+import { StyleReferenceFields } from '../StyleReferencePanel';
 
 // 실제 이미지(저장된 주소 또는 이번 세션에서 만든 것)가 있는지. 예전에 저장 없이 남은
 // imageGenerated 표시는 신뢰하지 않는다.
@@ -51,20 +52,9 @@ export default function CharImageStep({
   uploadDone,
   setUploadDone,
 }: Props) {
-  const {
-    saveCharImage,
-    updateCharacter,
-    updateNovel,
-    addStyleRefImage,
-    removeStyleRefImage,
-    promptTemplates,
-  } = useStore();
+  const { saveCharImage, updateCharacter, promptTemplates } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
-  const refImageRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState('');
-  const [stylePromptInput, setStylePromptInput] = useState(
-    novel.stylePrompt || ''
-  );
 
   const [autoRunning, setAutoRunning] = useState(false);
   const [charStatus, setCharStatus] = useState<
@@ -89,17 +79,6 @@ export default function CharImageStep({
   }, [novel.characters]);
 
   const selectedChars = novel.characters.filter((c) => selected[c.id]);
-
-  const handleRefImageUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const [header, base64] = result.split(',');
-      const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
-      addStyleRefImage(novel.id, base64, mime);
-    };
-    reader.readAsDataURL(file);
-  };
 
   const generateImageForChar = async (char: Character, label: string) => {
     setCharStatus((prev) => ({
@@ -226,130 +205,7 @@ export default function CharImageStep({
           background: 'var(--cream)',
         }}
       >
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--ink-soft)',
-            marginBottom: 6,
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-          }}
-        >
-          스타일 프롬프트 (텍스트, ref 이미지와 함께 전달됨)
-        </div>
-        <textarea
-          className="input-field"
-          value={stylePromptInput}
-          onChange={(e) => setStylePromptInput(e.target.value)}
-          onBlur={() => {
-            if (stylePromptInput !== (novel.stylePrompt || '')) {
-              updateNovel(novel.id, { stylePrompt: stylePromptInput });
-            }
-          }}
-          placeholder="e.g. cozy watercolor storybook illustration, soft pastel colors, hand-drawn outlines…"
-          style={{ fontSize: 12, minHeight: 56, marginBottom: 14 }}
-        />
-
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--ink-soft)',
-            marginBottom: 10,
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-          }}
-        >
-          스타일 참고 이미지 (여러 장 추가 가능 — 자동 생성 품질에 영향)
-        </div>
-        <input
-          ref={refImageRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleRefImageUpload(file);
-            e.target.value = '';
-          }}
-        />
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
-          }}
-        >
-          {(novel.styleRefImages ?? []).map((img, i) => (
-            <div
-              key={img.id}
-              style={{
-                position: 'relative',
-                width: 90,
-                height: 90,
-                border: '1px solid var(--border)',
-                background: 'white',
-                flexShrink: 0,
-              }}
-            >
-              {/* biome-ignore lint/performance/noImgElement: preview only */}
-              <img
-                src={`data:${img.mime};base64,${img.base64}`}
-                alt={`style ref ${i + 1}`}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => removeStyleRefImage(novel.id, img.id)}
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: 2,
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  background: 'rgba(26,20,16,0.7)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                }}
-              >
-                <X size={11} color="white" />
-              </button>
-            </div>
-          ))}
-
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: internal tool */}
-          {/* biome-ignore lint/a11y/useKeyWithClickEvents: internal tool */}
-          <div
-            onClick={() => refImageRef.current?.click()}
-            style={{
-              width: 90,
-              height: 90,
-              border: '2px dashed var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-              transition: 'border-color 0.2s',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.borderColor = 'var(--gold)')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.borderColor = 'var(--border)')
-            }
-          >
-            <Upload size={16} style={{ color: 'var(--ink-soft)' }} />
-          </div>
-        </div>
+        <StyleReferenceFields novel={novel} />
       </div>
 
       {novel.characters.length > 0 && (

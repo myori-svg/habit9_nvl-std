@@ -20,6 +20,7 @@ import {
   AutoGenStatusList,
   TemplateFallbackNotice,
 } from './ManualPanel/shared';
+import { StyleReferenceCallout } from './StyleReferencePanel';
 
 interface Props {
   novel: Novel;
@@ -438,6 +439,8 @@ export default function WorkPanel({ novel }: Props) {
               <AutoGenStatusList chars={statusChars} status={itemStatus} />
             )}
           </div>
+
+          <StyleReferenceCallout key={novel.id} novel={novel} />
 
           {/* Results */}
           {selectedPart.discussionQuestions.length === 0 ? (
