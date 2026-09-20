@@ -1,7 +1,7 @@
 'use client';
 import { Sparkles, Square } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { buildCharPromptPrompt, DEFAULT_PROMPT_TEMPLATES } from '@/lib/prompts';
+import { buildCharPromptPrompt, resolvePromptTemplate } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 import {
@@ -9,6 +9,7 @@ import {
   AutoGenStatusList,
   PromptBox,
   SaveCharPromptBox,
+  TemplateFallbackNotice,
 } from './shared';
 
 interface Props {
@@ -34,10 +35,14 @@ export default function CharPromptStep({
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const stopRequested = useRef(false);
 
+  const charPromptTemplate = resolvePromptTemplate(
+    'charPrompt',
+    promptTemplates.charPrompt
+  );
   const charPromptPrompt = buildCharPromptPrompt(
     charPromptName,
     charPromptInfo,
-    promptTemplates.charPrompt ?? DEFAULT_PROMPT_TEMPLATES.charPrompt
+    charPromptTemplate.template
   );
 
   // 새로 추가된 캐릭터(아직 selected에 없는 id)는 미생성 상태일 때만 기본 체크
@@ -248,14 +253,14 @@ export default function CharPromptStep({
         placeholder="캐릭터 정보 (③에서 Gemini가 생성한 결과 붙여넣기)"
         style={{ fontSize: 12, minHeight: 80, marginBottom: 12 }}
       />
+      <TemplateFallbackNotice
+        templateName="캐릭터 프롬프트"
+        missing={charPromptTemplate.missing}
+      />
       <PromptBox
         prompt={charPromptPrompt}
         label="Gemini에 붙여넣을 프롬프트"
         templateKey="charPrompt"
-        vars={{
-          charPromptName: charPromptName || '(이름)',
-          charPromptInfo: charPromptInfo || '(캐릭터 정보를 입력하세요)',
-        }}
       />
       <SaveCharPromptBox novel={novel} charName={charPromptName} />
     </div>

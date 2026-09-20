@@ -1,7 +1,8 @@
 'use client';
 import { Download, RefreshCw, Sparkles, Square } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { extractCharNames, splitCompositionScenes } from '@/lib/prompts';
+import { splitCompositionScenes } from '@/lib/output-format';
+import { extractCharNames, resolvePromptTemplate } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import { withTimeout } from '@/lib/withTimeout';
 import type {
@@ -15,6 +16,7 @@ import type {
 import {
   type AutoGenCharStatus,
   AutoGenStatusList,
+  TemplateFallbackNotice,
 } from './ManualPanel/shared';
 
 interface Props {
@@ -101,6 +103,14 @@ export default function WorkPanel({ novel }: Props) {
   const stopRequested = useRef(false);
 
   const selectedPart = novel.parts.find((p) => p.id === selectedPartId);
+  const dqTemplateMissing = resolvePromptTemplate(
+    'dq',
+    promptTemplates.dq
+  ).missing;
+  const compositionTemplateMissing = resolvePromptTemplate(
+    'composition',
+    promptTemplates.composition
+  ).missing;
 
   const selectPart = (partId: string) => {
     setSelectedPartId(partId);
@@ -415,6 +425,16 @@ export default function WorkPanel({ novel }: Props) {
                   <Square size={12} /> 중지
                 </button>
               )}
+            </div>
+            <div style={{ marginTop: dqTemplateMissing.length > 0 ? 10 : 0 }}>
+              <TemplateFallbackNotice
+                templateName="DQ"
+                missing={dqTemplateMissing}
+              />
+              <TemplateFallbackNotice
+                templateName="구도 프롬프트"
+                missing={compositionTemplateMissing}
+              />
             </div>
             {!selectedPart.content && (
               <p

@@ -4,13 +4,18 @@ import { useEffect, useRef, useState } from 'react';
 import { downloadBase64File } from '@/lib/download';
 import {
   buildCharImagePrompt,
-  DEFAULT_PROMPT_TEMPLATES,
   getStyleRef,
+  resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Character, Novel } from '@/types';
-import { type AutoGenCharStatus, AutoGenStatusList, PromptBox } from './shared';
+import {
+  type AutoGenCharStatus,
+  AutoGenStatusList,
+  PromptBox,
+  TemplateFallbackNotice,
+} from './shared';
 
 const SAVE_TIMEOUT_MS = 45000;
 
@@ -164,11 +169,15 @@ export default function CharImageStep({
   const style = getStyleRef(novel.stylePrompt);
   const charImageTextPrompt =
     novel.characters.find((c) => c.name === charImageName)?.textPrompt ?? '';
+  const charImageTemplate = resolvePromptTemplate(
+    'charImage',
+    promptTemplates.charImage
+  );
   const charImagePrompt = buildCharImagePrompt(
     style,
     charImageName,
     charImageTextPrompt,
-    promptTemplates.charImage ?? DEFAULT_PROMPT_TEMPLATES.charImage
+    charImageTemplate.template
   );
 
   const handleImageUpload = () => {
@@ -505,17 +514,14 @@ export default function CharImageStep({
         )}
       </div>
 
+      <TemplateFallbackNotice
+        templateName="캐릭터 이미지"
+        missing={charImageTemplate.missing}
+      />
       <PromptBox
         prompt={charImagePrompt}
         label="Gemini에 붙여넣을 프롬프트"
         templateKey="charImage"
-        vars={{
-          style,
-          charImageName: charImageName || '(이름)',
-          charImageTextPrompt:
-            charImageTextPrompt ||
-            '(④ 단계에서 텍스트 프롬프트를 먼저 생성해주세요)',
-        }}
       />
 
       {uploadError && (

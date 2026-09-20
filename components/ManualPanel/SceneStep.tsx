@@ -2,13 +2,13 @@
 import { Check } from 'lucide-react';
 import {
   buildScenePrompt,
-  DEFAULT_PROMPT_TEMPLATES,
   extractCharNames,
   getStyleRef,
+  resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
-import { PromptBox } from './shared';
+import { PromptBox, TemplateFallbackNotice } from './shared';
 
 interface Props {
   novel: Novel;
@@ -46,12 +46,13 @@ export default function SceneStep({
     .join('\n\n');
   const style = getStyleRef(novel.stylePrompt);
   const hasStyleImage = (novel.styleRefImages?.length ?? 0) > 0;
+  const sceneTemplate = resolvePromptTemplate('scene', promptTemplates.scene);
   const scenePrompt = buildScenePrompt(
     style,
     hasStyleImage,
     sceneComposition,
     charPromptsText,
-    promptTemplates.scene ?? DEFAULT_PROMPT_TEMPLATES.scene
+    sceneTemplate.template
   );
 
   const handleDQChange = (dqId: string) => {
@@ -184,19 +185,14 @@ export default function SceneStep({
         </div>
       )}
 
+      <TemplateFallbackNotice
+        templateName="장면 생성"
+        missing={sceneTemplate.missing}
+      />
       <PromptBox
         prompt={scenePrompt}
         label="Gemini에 붙여넣을 최종 장면 생성 프롬프트"
         templateKey="scene"
-        vars={{
-          style,
-          styleImageNote: hasStyleImage
-            ? ' (스타일 참고 이미지도 함께 제공)'
-            : '',
-          sceneComposition:
-            sceneComposition || '(구도 프롬프트를 입력하거나 DQ를 선택하세요)',
-          charPromptsText: charPromptsText || '(캐릭터를 선택하세요)',
-        }}
       />
     </div>
   );

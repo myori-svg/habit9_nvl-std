@@ -1,10 +1,15 @@
 'use client';
 import { Check, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { buildDQPrompt, DEFAULT_PROMPT_TEMPLATES } from '@/lib/prompts';
+import { splitQuestionBlocks } from '@/lib/output-format';
+import {
+  buildDQPrompt,
+  DQ_OUTPUT_FORMAT_INSTRUCTION,
+  resolvePromptTemplate,
+} from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
-import { PromptBox } from './shared';
+import { PromptBox, TemplateFallbackNotice } from './shared';
 
 interface Props {
   novel: Novel;
@@ -33,10 +38,11 @@ export default function DQStep({
     novel.parts.length > 0
       ? selectedParts.map((p) => `${p.label}\n${p.content}`).join('\n\n')
       : dqCustomSummary;
+  const dqTemplate = resolvePromptTemplate('dq', promptTemplates.dq);
   const dqPrompt = buildDQPrompt(
     novel.title,
     selectedSummary,
-    promptTemplates.dq ?? DEFAULT_PROMPT_TEMPLATES.dq
+    dqTemplate.template
   );
 
   const handleUpload = async (file: File) => {
@@ -67,12 +73,7 @@ export default function DQStep({
 
   const handleSaveDQs = async () => {
     if (!dqResult.trim() || selectedParts.length === 0) return;
-    const questions = dqResult
-      .trim()
-      .split(/\n*===\n*/)
-      .map((q) => q.trim())
-      .filter(Boolean)
-      .map((text) => ({ text }));
+    const questions = splitQuestionBlocks(dqResult).map((text) => ({ text }));
 
     for (const part of selectedParts) {
       await setPartDQs(novel.id, part.id, questions);
@@ -231,11 +232,12 @@ export default function DQStep({
           />
         </div>
       )}
+      <TemplateFallbackNotice templateName="DQ" missing={dqTemplate.missing} />
       <PromptBox
         prompt={dqPrompt}
         label="Gemini에 붙여넣을 프롬프트"
         templateKey="dq"
-        vars={{ novelTitle: novel.title, selectedSummary }}
+        appendix={DQ_OUTPUT_FORMAT_INSTRUCTION}
       />
 
       {selectedParts.length > 0 && (
