@@ -37,6 +37,16 @@ export function extractCharNames(text: string): string[] {
   return matches.filter((name, idx) => matches.indexOf(name) === idx);
 }
 
+// 캐릭터 이름을 한 줄에 하나씩 적은 텍스트를 이름 목록으로 만든다. 줄 앞뒤 공백과
+// 빈 줄은 버리고, 같은 이름이 반복되면 처음 하나만 남긴다.
+export function parseCharacterNameLines(text: string): string[] {
+  const names = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return names.filter((name, idx) => names.indexOf(name) === idx);
+}
+
 // 구도 프롬프트에 {이름}으로 등장하는 캐릭터만 골라낸다 (대소문자는 구분하지 않는다).
 export function pickMentionedCharacters<T extends { name: string }>(
   text: string,
@@ -362,7 +372,8 @@ export function buildCharImagePrompt(
     style,
     charImageName: charImageName || '(이름)',
     charImageTextPrompt:
-      charImageTextPrompt || '(④ 단계에서 텍스트 프롬프트를 먼저 생성해주세요)',
+      charImageTextPrompt ||
+      '(⓪-2 단계에서 텍스트 프롬프트를 먼저 생성해주세요)',
   });
 }
 

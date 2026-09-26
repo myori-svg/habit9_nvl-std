@@ -2,14 +2,20 @@
 import { Check } from 'lucide-react';
 import {
   buildCharInfoPrompt,
-  extractCharNames,
+  parseCharacterNameLines,
   resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 import CharImageStep from './CharImageStep';
 import CharPromptStep from './CharPromptStep';
-import { PromptBox, SaveCharInfoBox, TemplateFallbackNotice } from './shared';
+import SaveCharInfoTableBox from './SaveCharInfoTableBox';
+import {
+  AutoGrowTextarea,
+  PromptBox,
+  SaveCharInfoBox,
+  TemplateFallbackNotice,
+} from './shared';
 
 interface Props {
   novel: Novel;
@@ -96,17 +102,17 @@ export default function CharInfoStep({
             }}
           >
             {t === 'extract'
-              ? '③-0 캐릭터 목록 추출'
+              ? '⓪-0 캐릭터 목록 추출'
               : t === 'info'
-                ? '③-1 캐릭터 정보'
+                ? '⓪-1 캐릭터 정보'
                 : t === 'prompt'
-                  ? '③-2 캐릭터 프롬프트'
-                  : '③-3 캐릭터 이미지'}
+                  ? '⓪-2 캐릭터 프롬프트'
+                  : '⓪-3 캐릭터 이미지'}
           </button>
         ))}
       </div>
 
-      {/* ③-0 */}
+      {/* ⓪-0 */}
       {charSubStep === 'extract' && (
         <div>
           <div
@@ -118,16 +124,18 @@ export default function CharInfoStep({
               textTransform: 'uppercase',
             }}
           >
-            구도 프롬프트 붙여넣기
+            캐릭터 이름 입력 (줄바꿈으로 구분)
           </div>
-          <textarea
+          <AutoGrowTextarea
             className="input-field"
             value={charExtractInput}
             onChange={(e) => {
               setCharExtractInput(e.target.value);
-              setExtractedChars(extractCharNames(e.target.value));
+              setExtractedChars(parseCharacterNameLines(e.target.value));
             }}
-            placeholder="② 단계에서 생성한 구도 프롬프트를 붙여넣으세요"
+            placeholder={
+              '캐릭터 이름을 한 줄에 하나씩 입력하세요\n예)\nAlice\nBob'
+            }
             style={{ fontSize: 12, minHeight: 120, marginBottom: 12 }}
           />
 
@@ -210,10 +218,12 @@ export default function CharInfoStep({
               <Check size={12} /> 새 캐릭터 저장
             </button>
           )}
+
+          <SaveCharInfoTableBox novel={novel} />
         </div>
       )}
 
-      {/* ③-1 */}
+      {/* ⓪-1 */}
       {charSubStep === 'info' && (
         <div>
           <div
@@ -243,7 +253,7 @@ export default function CharInfoStep({
                   opacity: 0.5,
                 }}
               >
-                ③-0에서 먼저 캐릭터를 추출해주세요
+                ⓪-0에서 먼저 캐릭터를 추출해주세요
               </p>
             )}
             {novel.characters.map((c) => {
@@ -329,7 +339,7 @@ export default function CharInfoStep({
         </div>
       )}
 
-      {/* ③-2 */}
+      {/* ⓪-2 */}
       {charSubStep === 'prompt' && (
         <CharPromptStep
           novel={novel}
@@ -340,7 +350,7 @@ export default function CharInfoStep({
         />
       )}
 
-      {/* ③-3 */}
+      {/* ⓪-3 */}
       {charSubStep === 'image' && (
         <CharImageStep
           novel={novel}

@@ -320,7 +320,7 @@ export default function CharImageStep({
             marginBottom: 16,
           }}
         >
-          ③-0에서 먼저 캐릭터를 추출해주세요
+          ⓪-0에서 먼저 캐릭터를 추출해주세요
         </p>
       )}
 
