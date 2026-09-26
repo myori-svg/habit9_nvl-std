@@ -58,8 +58,10 @@ interface AppStore {
   ) => Promise<DiscussionQuestion[]>;
   addChapterParts: (
     novelId: string,
-    chapters: { label: string; content: string }[]
+    chapters: { label: string; content: string }[],
+    sourceFileName: string
   ) => Promise<void>;
+  deleteParts: (novelId: string, partIds: string[]) => Promise<void>;
 
   history: HistoryEntry[];
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void;
@@ -261,16 +263,32 @@ export const useStore = create<AppStore>()(
         return newDQs;
       },
 
-      addChapterParts: async (novelId, chapters) => {
+      addChapterParts: async (novelId, chapters, sourceFileName) => {
         const novel = get().novels.find((n) => n.id === novelId);
         if (!novel) return;
+        const sourceFileId = crypto.randomUUID();
         const newParts = chapters.map((c) => ({
           id: crypto.randomUUID(),
           label: c.label,
           content: c.content,
+          sourceFileId,
+          sourceFileName,
           discussionQuestions: [],
         }));
         const updated = { ...novel, parts: [...novel.parts, ...newParts] };
+        set((s) => ({
+          novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
+        }));
+        await saveNovel(updated);
+      },
+
+      deleteParts: async (novelId, partIds) => {
+        const novel = get().novels.find((n) => n.id === novelId);
+        if (!novel) return;
+        const updated = {
+          ...novel,
+          parts: novel.parts.filter((p) => !partIds.includes(p.id)),
+        };
         set((s) => ({
           novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
         }));

@@ -1,5 +1,5 @@
 'use client';
-import { Check, Upload } from 'lucide-react';
+import { Check, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { splitQuestionBlocks } from '@/lib/output-format';
 import {
@@ -8,7 +8,7 @@ import {
   resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
-import type { Novel } from '@/types';
+import type { Novel, NovelPart } from '@/types';
 import { PromptBox, TemplateFallbackNotice } from './shared';
 
 interface Props {
@@ -19,6 +19,31 @@ interface Props {
   setDqCustomSummary: React.Dispatch<React.SetStateAction<string>>;
 }
 
+interface ChapterFileGroup {
+  key: string;
+  name: string;
+  parts: NovelPart[];
+}
+
+const LEGACY_FILE_GROUP_KEY = 'legacy';
+
+// 업로드 파일 단위로 챕터를 묶는다. 파일 정보가 기록되기 전에 올라간 챕터는
+// 어느 파일에서 왔는지 알 수 없으므로 하나의 "이전 업로드" 묶음으로 모은다.
+function groupPartsBySourceFile(parts: NovelPart[]): ChapterFileGroup[] {
+  const groups = new Map<string, ChapterFileGroup>();
+  for (const part of parts) {
+    const key = part.sourceFileId ?? LEGACY_FILE_GROUP_KEY;
+    const group = groups.get(key) ?? {
+      key,
+      name: part.sourceFileName ?? '이전에 업로드한 챕터',
+      parts: [],
+    };
+    group.parts.push(part);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 export default function DQStep({
   novel,
   dqChapters,
@@ -26,13 +51,15 @@ export default function DQStep({
   dqCustomSummary,
   setDqCustomSummary,
 }: Props) {
-  const { promptTemplates, addChapterParts, setPartDQs } = useStore();
+  const { promptTemplates, addChapterParts, deleteParts, setPartDQs } =
+    useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [dqResult, setDqResult] = useState('');
   const [saved, setSaved] = useState(false);
 
+  const fileGroups = groupPartsBySourceFile(novel.parts);
   const selectedParts = novel.parts.filter((p) => dqChapters.includes(p.id));
   const selectedSummary =
     novel.parts.length > 0
@@ -60,7 +87,7 @@ export default function DQStep({
 
       const chapters: { label: string; content: string }[] = data.chapters;
       if (chapters.length > 0) {
-        await addChapterParts(novel.id, chapters);
+        await addChapterParts(novel.id, chapters, file.name);
       } else {
         setDqCustomSummary(data.text);
       }
@@ -69,6 +96,24 @@ export default function DQStep({
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleDeleteFile = async (group: ChapterFileGroup) => {
+    const dqCount = group.parts.reduce(
+      (sum, p) => sum + p.discussionQuestions.length,
+      0
+    );
+    const dqWarning =
+      dqCount > 0 ? ` 저장된 DQ ${dqCount}개도 함께 삭제됩니다.` : '';
+    if (
+      !window.confirm(
+        `"${group.name}"에서 나온 챕터 ${group.parts.length}개를 삭제할까요?${dqWarning}`
+      )
+    )
+      return;
+    const deletedIds = group.parts.map((p) => p.id);
+    await deleteParts(novel.id, deletedIds);
+    setDqChapters((prev) => prev.filter((id) => !deletedIds.includes(id)));
   };
 
   const handleSaveDQs = async () => {
@@ -132,6 +177,56 @@ export default function DQStep({
 
       {novel.parts.length > 0 ? (
         <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--ink-soft)',
+                marginBottom: 8,
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+              }}
+            >
+              업로드한 파일
+            </div>
+            {fileGroups.map((group) => (
+              <div
+                key={group.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '6px 10px',
+                  marginBottom: 4,
+                  background: 'var(--parchment)',
+                  fontSize: 12,
+                }}
+              >
+                <span>
+                  {group.name}{' '}
+                  <span style={{ color: 'var(--ink-soft)' }}>
+                    · 챕터 {group.parts.length}개
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => handleDeleteFile(group)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 11,
+                    padding: '3px 8px',
+                    color: 'var(--crimson)',
+                  }}
+                >
+                  <Trash2 size={11} /> 삭제
+                </button>
+              </div>
+            ))}
+          </div>
           <div
             style={{
               fontSize: 11,

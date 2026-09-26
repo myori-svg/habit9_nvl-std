@@ -31,6 +31,8 @@ export interface NovelPart {
   id: string;
   label: string;
   content: string; // 챕터 원문 (파일 업로드 파싱 결과)
+  sourceFileId?: string; // 같은 업로드에서 나온 챕터끼리 공유. 파일 단위 삭제의 묶음 기준
+  sourceFileName?: string;
   discussionQuestions: DiscussionQuestion[];
 }
 
