@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -10,7 +11,7 @@ import {
   type Unsubscribe,
   updateDoc,
 } from 'firebase/firestore';
-import type { DiscussionQuestion, Novel } from '@/types';
+import type { DiscussionQuestion, Novel, SceneSlot } from '@/types';
 import { uploadImageToBlob } from './blob-upload';
 import { db } from './firebase';
 import type { PromptTemplateKey } from './prompts';
@@ -49,15 +50,15 @@ function stripUndefined(obj: unknown): unknown {
 }
 
 // sceneImages 슬롯(main/optionA/optionB)에서 in-memory 전용 필드(base64/mime)를
-// 빼고 url만 남긴다. 슬롯 자체가 비어 있으면(url도 없으면) 필드를 통째로 뺀다.
+// 빼고 url·error만 남긴다. 슬롯 자체가 비어 있으면(url도 error도 없으면) 필드를 통째로 뺀다.
 function stripSceneImages(
   sceneImages: DiscussionQuestion['sceneImages']
 ): DiscussionQuestion['sceneImages'] {
   if (!sceneImages) return sceneImages;
   const stripped = Object.fromEntries(
     Object.entries(sceneImages)
-      .filter(([, img]) => img?.url)
-      .map(([slot, img]) => [slot, { url: img?.url }])
+      .filter(([, img]) => img?.url || img?.error)
+      .map(([slot, img]) => [slot, { url: img?.url, error: img?.error }])
   );
   return Object.keys(stripped).length > 0 ? stripped : undefined;
 }
@@ -118,6 +119,51 @@ export async function saveCharacterImage(
     characters: stripUndefined(updatedChars),
   });
   return url;
+}
+
+// 백그라운드로 생성한 장면 이미지 결과를 해당 질문의 슬롯 하나에만 반영한다.
+// 최신 문서를 다시 읽어 partId·dqId로 현재 배열 위치를 찾은 뒤 그 필드만
+// updateDoc으로 갱신하므로, 그 사이 다른 필드가 바뀌었어도 덮어쓰지 않는다.
+async function updateSceneImageSlot(
+  novelId: string,
+  partId: string,
+  dqId: string,
+  slot: SceneSlot,
+  value: { url: string } | { error: string }
+): Promise<void> {
+  const snap = await getDoc(doc(db, NOVELS, novelId));
+  if (!snap.exists()) return;
+  const novel = snap.data() as Novel;
+  const partIndex = novel.parts.findIndex((p) => p.id === partId);
+  if (partIndex === -1) return;
+  const dqIndex = novel.parts[partIndex].discussionQuestions.findIndex(
+    (dq) => dq.id === dqId
+  );
+  if (dqIndex === -1) return;
+  await updateDoc(doc(db, NOVELS, novelId), {
+    [`parts.${partIndex}.discussionQuestions.${dqIndex}.sceneImages.${slot}`]:
+      value,
+  });
+}
+
+export async function saveSceneImage(
+  novelId: string,
+  partId: string,
+  dqId: string,
+  slot: SceneSlot,
+  url: string
+): Promise<void> {
+  await updateSceneImageSlot(novelId, partId, dqId, slot, { url });
+}
+
+export async function saveSceneImageError(
+  novelId: string,
+  partId: string,
+  dqId: string,
+  slot: SceneSlot,
+  message: string
+): Promise<void> {
+  await updateSceneImageSlot(novelId, partId, dqId, slot, { error: message });
 }
 
 // ── Prompt Templates ─────────────────────────────────────────────
