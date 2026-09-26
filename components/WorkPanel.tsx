@@ -1,6 +1,6 @@
 'use client';
 import { Download, RefreshCw, Sparkles, Square } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { splitCompositionScenes } from '@/lib/output-format';
 import {
   extractCharNames,
@@ -8,13 +8,7 @@ import {
   resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
-import type {
-  DiscussionQuestion,
-  Novel,
-  NovelPart,
-  SceneImage,
-  SceneSlot,
-} from '@/types';
+import type { DiscussionQuestion, Novel, SceneImage, SceneSlot } from '@/types';
 import {
   type AutoGenCharStatus,
   AutoGenStatusList,
@@ -36,6 +30,7 @@ const SLOT_LABELS: Record<SceneSlot, string> = {
 
 interface WorkItem {
   dqId: string;
+  dqIndex: number;
   slot: SceneSlot;
   text: string;
   label: string;
@@ -55,6 +50,7 @@ function buildWorkItems(dqs: DiscussionQuestion[]): WorkItem[] {
       if (!text) return;
       items.push({
         dqId: dq.id,
+        dqIndex: i,
         slot,
         text,
         label: `Q${i + 1} · ${SLOT_LABELS[slot]}`,
@@ -65,7 +61,7 @@ function buildWorkItems(dqs: DiscussionQuestion[]): WorkItem[] {
 }
 
 export default function WorkPanel({ novel }: Props) {
-  const { addHistory, promptTemplates, setPartDQs } = useStore();
+  const { promptTemplates, setPartDQs } = useStore();
   const [selectedPartId, setSelectedPartId] = useState<string>(
     novel.parts[0]?.id ?? ''
   );
@@ -75,11 +71,6 @@ export default function WorkPanel({ novel }: Props) {
     Record<string, AutoGenCharStatus>
   >({});
   const [pipelineItems, setPipelineItems] = useState<WorkItem[]>([]);
-  // 이번 세션에서 만든 장면 이미지. 저장소에 저장하지 않으므로 새로고침하면
-  // 사라지고, 그 전까지 화면에 보이며 내려받을 수 있다.
-  const [sessionImages, setSessionImages] = useState<
-    Record<string, { base64: string; mime: string }>
-  >({});
   const stopRequested = useRef(false);
 
   const selectedPart = novel.parts.find((p) => p.id === selectedPartId);
@@ -99,18 +90,49 @@ export default function WorkPanel({ novel }: Props) {
     setPipelineError('');
   };
 
-  // ── 장면 이미지 1장 생성 (파이프라인 루프 / 개별 재생성 둘 다 이걸 씀) ──
+  // 백그라운드 생성이 끝나면 Firestore 실시간 구독을 거쳐 novel prop이 갱신된다.
+  // 'running'으로 표시해 둔 항목 중 해당 슬롯에 결과(url/error)가 도착한 것만
+  // 완료/실패로 바꾼다 — 화면이 켜져 있는 동안은 물론, 나갔다 돌아왔을 때도 이
+  // 렌더에서 바로 반영된다.
+  useEffect(() => {
+    setItemStatus((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [key, status] of Object.entries(prev)) {
+        if (status.state !== 'running') continue;
+        const [dqId, slot] = key.split(':') as [string, SceneSlot];
+        const image = selectedPart?.discussionQuestions.find(
+          (d) => d.id === dqId
+        )?.sceneImages?.[slot];
+        if (image?.url) {
+          next[key] = { state: 'done', message: '완료 — 자동 저장됨' };
+          changed = true;
+        } else if (image?.error) {
+          next[key] = { state: 'error', message: image.error };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [selectedPart]);
+
+  // ── 장면 이미지 1장 생성 요청 (파이프라인 루프 / 개별 재생성 둘 다 이걸 씀) ──
+  // 서버가 요청을 받았다는 것만 확인하고 바로 끝난다 — 실제 생성·저장은 서버가
+  // 백그라운드로 이어서 하고, 완료되면 Firestore를 거쳐 novel prop으로 들어온다
+  // (아래 useEffect가 그 시점을 감지해 상태를 'done'/'error'로 바꾼다).
   const generateSceneForSlot = async (
-    part: NovelPart,
     dqId: string,
+    dqIndex: number,
     slot: SceneSlot,
-    text: string,
-    label: string
+    text: string
   ): Promise<void> => {
     const key = `${dqId}:${slot}`;
     setItemStatus((prev) => ({
       ...prev,
-      [key]: { state: 'running', message: '장면 생성 중…' },
+      [key]: {
+        state: 'running',
+        message: '장면 생성 중… (백그라운드에서 계속돼요)',
+      },
     }));
     try {
       const mentioned = novel.characters.filter((c) =>
@@ -135,6 +157,11 @@ export default function WorkPanel({ novel }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          novelId: novel.id,
+          partId: selectedPartId,
+          dqId,
+          dqIndex,
+          slot,
           styleRefImages: novel.styleRefImages,
           stylePrompt: novel.stylePrompt,
           compositionPrompt: text,
@@ -143,27 +170,6 @@ export default function WorkPanel({ novel }: Props) {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-
-      addHistory({
-        novelId: novel.id,
-        novelTitle: novel.title,
-        type: 'scene',
-        label: `${part.label} — ${label}`,
-        imageBase64: data.imageBase64,
-        imageMime: data.imageMime,
-        prompt: text,
-      });
-      setSessionImages((prev) => ({
-        ...prev,
-        [key]: { base64: data.imageBase64, mime: data.imageMime },
-      }));
-      setItemStatus((prev) => ({
-        ...prev,
-        [key]: {
-          state: 'done',
-          message: '완료 — 저장되지 않으니 필요하면 다운로드해 두세요',
-        },
-      }));
     } catch (e) {
       setItemStatus((prev) => ({
         ...prev,
@@ -236,11 +242,10 @@ export default function WorkPanel({ novel }: Props) {
           continue;
         }
         await generateSceneForSlot(
-          selectedPart,
           item.dqId,
+          item.dqIndex,
           item.slot,
-          item.text,
-          item.label
+          item.text
         );
       }
     } catch (e) {
@@ -258,7 +263,11 @@ export default function WorkPanel({ novel }: Props) {
     stopRequested.current = true;
   };
 
-  const handleRegenerateSlot = (dq: DiscussionQuestion, slot: SceneSlot) => {
+  const handleRegenerateSlot = (
+    dq: DiscussionQuestion,
+    dqIndex: number,
+    slot: SceneSlot
+  ) => {
     if (!selectedPart) return;
     const split = splitCompositionScenes(dq.compositionPrompt);
     const text =
@@ -268,21 +277,7 @@ export default function WorkPanel({ novel }: Props) {
           ? split.optionA
           : split.optionB;
     if (!text) return;
-    generateSceneForSlot(
-      selectedPart,
-      dq.id,
-      slot,
-      text,
-      `${dq.text.slice(0, 30)}… · ${SLOT_LABELS[slot]}`
-    );
-  };
-
-  const downloadImage = (base64: string, mime: string, name: string) => {
-    const ext = mime.split('/')[1] || 'png';
-    const a = document.createElement('a');
-    a.href = `data:${mime};base64,${base64}`;
-    a.download = `${name}.${ext}`;
-    a.click();
+    generateSceneForSlot(dq.id, dqIndex, slot, text);
   };
 
   const statusChars = [
@@ -465,9 +460,7 @@ export default function WorkPanel({ novel }: Props) {
                   index={i}
                   dq={dq}
                   itemStatus={itemStatus}
-                  sessionImages={sessionImages}
-                  onRegenerate={(slot) => handleRegenerateSlot(dq, slot)}
-                  onDownload={downloadImage}
+                  onRegenerate={(slot) => handleRegenerateSlot(dq, i, slot)}
                 />
               ))}
             </div>
@@ -484,16 +477,12 @@ function DQCard({
   index,
   dq,
   itemStatus,
-  sessionImages,
   onRegenerate,
-  onDownload,
 }: {
   index: number;
   dq: DiscussionQuestion;
   itemStatus: Record<string, AutoGenCharStatus>;
-  sessionImages: Record<string, { base64: string; mime: string }>;
   onRegenerate: (slot: SceneSlot) => void;
-  onDownload: (base64: string, mime: string, name: string) => void;
 }) {
   const split = splitCompositionScenes(dq.compositionPrompt);
   const slotTexts: Record<SceneSlot, string> = {
@@ -527,12 +516,8 @@ function DQCard({
               slot={slot}
               text={text}
               image={dq.sceneImages?.[slot]}
-              session={sessionImages[`${dq.id}:${slot}`]}
               status={itemStatus[`${dq.id}:${slot}`]}
               onRegenerate={() => onRegenerate(slot)}
-              onDownload={(base64, mime) =>
-                onDownload(base64, mime, `scene-Q${index + 1}-${slot}`)
-              }
             />
           );
         })}
@@ -544,29 +529,18 @@ function DQCard({
 function SceneSlotCard({
   slot,
   image,
-  session,
   status,
   onRegenerate,
-  onDownload,
 }: {
   slot: SceneSlot;
   text: string;
   image?: SceneImage;
-  session?: { base64: string; mime: string };
   status?: AutoGenCharStatus;
   onRegenerate: () => void;
-  onDownload: (base64: string, mime: string) => void;
 }) {
   const running = status?.state === 'running';
-  // 이번 세션에서 만든 이미지가 있으면 가장 먼저 보여준다.
-  const shown = session
-    ? { base64: session.base64, mime: session.mime }
-    : image?.base64
-      ? { base64: image.base64, mime: image.mime || 'image/png' }
-      : undefined;
-  const imgSrc = shown
-    ? `data:${shown.mime};base64,${shown.base64}`
-    : image?.url;
+  const imgSrc = image?.url;
+  const failed = status?.state === 'error' || Boolean(image?.error);
 
   return (
     <div style={{ flex: '1 1 180px', minWidth: 160 }}>
@@ -588,7 +562,7 @@ function SceneSlotCard({
         />
       ) : imgSrc ? (
         <div style={{ position: 'relative' }}>
-          {/* biome-ignore lint/performance/noImgElement: dynamic base64/URL image, not eligible for next/image optimization */}
+          {/* biome-ignore lint/performance/noImgElement: dynamic Blob URL, not eligible for next/image optimization */}
           <img
             src={imgSrc}
             alt={SLOT_LABELS[slot]}
@@ -609,16 +583,17 @@ function SceneSlotCard({
               gap: 4,
             }}
           >
-            {shown && (
-              <button
-                type="button"
-                onClick={() => onDownload(shown.base64, shown.mime)}
-                style={iconBtnStyle}
-                aria-label="다운로드"
-              >
-                <Download size={11} />
-              </button>
-            )}
+            {/* Blob 주소는 다른 도메인이라 download 속성이 안 먹을 수 있어 새
+                탭으로 열어서 직접 저장하게 한다. */}
+            <a
+              href={imgSrc}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...iconBtnStyle, textDecoration: 'none' }}
+              aria-label="원본 이미지 새 탭에서 열기"
+            >
+              <Download size={11} />
+            </a>
             <button
               type="button"
               onClick={onRegenerate}
@@ -637,14 +612,13 @@ function SceneSlotCard({
             width: '100%',
             aspectRatio: '16/9',
             border: '1px dashed var(--border)',
-            background: status?.state === 'error' ? '#fff5f5' : 'var(--cream)',
-            color:
-              status?.state === 'error' ? 'var(--crimson)' : 'var(--ink-soft)',
+            background: failed ? '#fff5f5' : 'var(--cream)',
+            color: failed ? 'var(--crimson)' : 'var(--ink-soft)',
             fontSize: 11,
             cursor: 'pointer',
           }}
         >
-          {status?.state === 'error' ? '실패 — 재시도' : '이미지 생성'}
+          {failed ? '실패 — 재시도' : '이미지 생성'}
         </button>
       )}
     </div>

@@ -39,7 +39,8 @@ export type SceneSlot = 'main' | 'optionA' | 'optionB';
 export interface SceneImage {
   base64?: string; // in-memory only
   mime?: string;
-  url?: string; // Firebase Storage URL (persistent)
+  url?: string; // Vercel Blob URL (persistent)
+  error?: string; // 서버 백그라운드 생성 실패 시 메시지 (새로고침 후에도 보이도록)
 }
 
 export interface DiscussionQuestion {
