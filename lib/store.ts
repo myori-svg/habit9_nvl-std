@@ -8,6 +8,7 @@ import type {
 } from '@/types';
 import {
   deleteNovel as fbDeleteNovel,
+  deleteParts as fbDeleteParts,
   deletePromptTemplate as fbDeletePromptTemplate,
   savePromptTemplate as fbSavePromptTemplate,
   stopAutoRun as fbStopAutoRun,
@@ -59,8 +60,10 @@ interface AppStore {
   ) => Promise<DiscussionQuestion[]>;
   addChapterParts: (
     novelId: string,
-    chapters: { label: string; content: string }[]
+    chapters: { label: string; content: string }[],
+    sourceFileName: string
   ) => Promise<void>;
+  deleteParts: (novelId: string, partIds: string[]) => Promise<void>;
   stopAutoRun: (novelId: string, partId: string) => Promise<void>;
 
   history: HistoryEntry[];
@@ -265,13 +268,16 @@ export const useStore = create<AppStore>()(
         return newDQs;
       },
 
-      addChapterParts: async (novelId, chapters) => {
+      addChapterParts: async (novelId, chapters, sourceFileName) => {
         const novel = get().novels.find((n) => n.id === novelId);
         if (!novel) return;
+        const sourceFileId = crypto.randomUUID();
         const newParts = chapters.map((c) => ({
           id: crypto.randomUUID(),
           label: c.label,
           content: c.content,
+          sourceFileId,
+          sourceFileName,
           discussionQuestions: [],
         }));
         const updated = { ...novel, parts: [...novel.parts, ...newParts] };
@@ -279,6 +285,17 @@ export const useStore = create<AppStore>()(
           novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
         }));
         await saveNovel(updated);
+      },
+
+      deleteParts: async (novelId, partIds) => {
+        set((s) => ({
+          novels: s.novels.map((n) =>
+            n.id === novelId
+              ? { ...n, parts: n.parts.filter((p) => !partIds.includes(p.id)) }
+              : n
+          ),
+        }));
+        await fbDeleteParts(novelId, partIds);
       },
 
       // 실행 기록은 서버가 쓰는 값이라 로컬 state를 먼저 고치지 않고, 저장 후

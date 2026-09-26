@@ -168,6 +168,28 @@ async function updatePart<T>(
   );
 }
 
+// 지정한 챕터들을 최신 문서에서 제거한다. 다른 챕터에서 서버가 진행 중인 자동
+// 생성 결과를 화면이 가진 옛 상태로 덮어쓰지 않도록 문서 전체 저장(saveNovel)을
+// 쓰지 않고 트랜잭션으로 처리한다. 삭제된 챕터의 실행은 다음 확인 때 중단된다.
+export async function deleteParts(
+  novelId: string,
+  partIds: string[]
+): Promise<void> {
+  const ref = doc(db, NOVELS, novelId);
+  await runTransaction(
+    db,
+    async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const novel = snap.data() as Novel;
+      tx.update(ref, {
+        parts: novel.parts.filter((p) => !partIds.includes(p.id)),
+      });
+    },
+    { maxAttempts: TRANSACTION_MAX_ATTEMPTS }
+  );
+}
+
 export async function fetchPart(
   novelId: string,
   partId: string
