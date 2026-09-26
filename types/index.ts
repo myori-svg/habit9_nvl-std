@@ -32,6 +32,25 @@ export interface NovelPart {
   label: string;
   content: string; // 챕터 원문 (파일 업로드 파싱 결과)
   discussionQuestions: DiscussionQuestion[];
+  autoRun?: AutoRun; // 서버 백그라운드 자동 생성의 가장 최근 실행 기록
+}
+
+export type AutoRunStatus = 'running' | 'stopped' | 'error' | 'done';
+
+// full: 질문·구도 프롬프트를 새로 만든 뒤 모든 장면 이미지를 만든다.
+// images-only: 저장된 질문은 그대로 두고 이미지가 없는 장면만 만든다.
+export type AutoRunMode = 'full' | 'images-only';
+
+// questions: 질문·구도 프롬프트 생성 중, images: 장면 이미지 생성 중
+export type AutoRunStage = 'questions' | 'images';
+
+export interface AutoRun {
+  id: string; // 실행마다 새로 발급 — 중지·교체된 실행의 뒤늦은 작업을 걸러내는 표식
+  status: AutoRunStatus;
+  stage: AutoRunStage;
+  startedAt: string;
+  updatedAt: string; // 서버가 마지막으로 진행을 기록한 시각
+  error?: string;
 }
 
 export type SceneSlot = 'main' | 'optionA' | 'optionB';

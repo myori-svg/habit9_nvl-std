@@ -1,5 +1,7 @@
 import { fetchBlobImage } from '@/lib/image-url';
-import type { ReferenceImage } from '@/lib/openai-image';
+import { generateImage, type ReferenceImage } from '@/lib/openai-image';
+import { uploadSceneImageToBlob } from '@/lib/scene-image-storage';
+import type { SceneSlot } from '@/types';
 
 export interface SceneCharacterInput {
   name: string;
@@ -58,4 +60,43 @@ export async function resolveSceneReferenceImages(
   ).filter((img): img is ReferenceImage => img !== null);
 
   return [...(styleRefImages ?? []), ...characterImages];
+}
+
+export interface SceneImageRequest {
+  novelId: string;
+  partId: string;
+  dqIndex: number;
+  slot: SceneSlot;
+  stylePrompt?: string;
+  styleRefImages?: ReferenceImage[];
+  compositionPrompt: string;
+  characters: SceneCharacterInput[];
+}
+
+// 장면 이미지 한 장을 만들어 보관함의 고정 자리에 올리고, 화면용 주소를 돌려준다.
+// Firestore 반영은 호출하는 쪽이 한다.
+export async function generateSceneImageUrl(
+  request: SceneImageRequest
+): Promise<string> {
+  const prompt = buildScenePrompt(
+    request.stylePrompt,
+    request.compositionPrompt,
+    request.characters
+  );
+  const referenceImages = await resolveSceneReferenceImages(
+    request.styleRefImages,
+    request.characters
+  );
+  const { imageBase64, imageMime } = await generateImage(
+    prompt,
+    referenceImages
+  );
+  return uploadSceneImageToBlob(
+    request.novelId,
+    request.partId,
+    request.dqIndex,
+    request.slot,
+    imageBase64,
+    imageMime
+  );
 }

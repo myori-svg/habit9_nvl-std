@@ -10,6 +10,7 @@ import {
   deleteNovel as fbDeleteNovel,
   deletePromptTemplate as fbDeletePromptTemplate,
   savePromptTemplate as fbSavePromptTemplate,
+  stopAutoRun as fbStopAutoRun,
   saveCharacterImage,
   saveNovel,
   subscribeNovels,
@@ -60,6 +61,7 @@ interface AppStore {
     novelId: string,
     chapters: { label: string; content: string }[]
   ) => Promise<void>;
+  stopAutoRun: (novelId: string, partId: string) => Promise<void>;
 
   history: HistoryEntry[];
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void;
@@ -251,7 +253,9 @@ export const useStore = create<AppStore>()(
         const updated = {
           ...novel,
           parts: novel.parts.map((p) =>
-            p.id !== partId ? p : { ...p, discussionQuestions: newDQs }
+            p.id !== partId
+              ? p
+              : { ...p, discussionQuestions: newDQs, autoRun: undefined }
           ),
         };
         set((s) => ({
@@ -275,6 +279,12 @@ export const useStore = create<AppStore>()(
           novels: s.novels.map((n) => (n.id === novelId ? updated : n)),
         }));
         await saveNovel(updated);
+      },
+
+      // 실행 기록은 서버가 쓰는 값이라 로컬 state를 먼저 고치지 않고, 저장 후
+      // 구독으로 들어오는 갱신을 그대로 따른다.
+      stopAutoRun: async (novelId, partId) => {
+        await fbStopAutoRun(novelId, partId);
       },
 
       history: [],
@@ -349,6 +359,7 @@ export const useStore = create<AppStore>()(
           })),
           parts: n.parts.map((p) => ({
             ...p,
+            autoRun: undefined,
             discussionQuestions: p.discussionQuestions.map((dq) => ({
               ...dq,
               sceneImage: undefined,
