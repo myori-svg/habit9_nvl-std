@@ -7,11 +7,19 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   type Unsubscribe,
   updateDoc,
 } from 'firebase/firestore';
-import type { DiscussionQuestion, Novel, SceneSlot } from '@/types';
+import type {
+  AutoRun,
+  DiscussionQuestion,
+  Novel,
+  NovelPart,
+  SceneSlot,
+} from '@/types';
+import { isAutoRunInProgress, isCurrentRun } from './auto-run';
 import { uploadImageToBlob } from './blob-upload';
 import { db } from './firebase';
 import type { PromptTemplateKey } from './prompts';
@@ -121,28 +129,108 @@ export async function saveCharacterImage(
   return url;
 }
 
-// 백그라운드로 생성한 장면 이미지 결과를 해당 질문의 슬롯 하나에만 반영한다.
-// 최신 문서를 다시 읽어 partId·dqId로 현재 배열 위치를 찾은 뒤 그 필드만
-// updateDoc으로 갱신하므로, 그 사이 다른 필드가 바뀌었어도 덮어쓰지 않는다.
+// ── 챕터 단위 갱신 (서버 백그라운드 작업과 화면이 같은 문서를 함께 고친다) ──────
+
+// 장면 이미지 여러 장이 거의 동시에 끝나며 같은 문서를 고치므로, 충돌 재시도
+// 횟수를 기본값(5)보다 넉넉하게 둔다.
+const TRANSACTION_MAX_ATTEMPTS = 10;
+
+// 챕터 하나를 "최신 문서 읽기 → 고치기 → 쓰기"를 트랜잭션으로 묶어 갱신한다.
+// Firestore는 배열 원소를 경로(parts.0.…)로 부분 갱신할 수 없다 — 경로 중간이
+// 배열이면 그 배열이 통째로 map으로 바뀐다. 그래서 parts 배열 전체를 다시 쓴다.
+// mutate가 part를 돌려주지 않으면 쓰지 않고 result만 돌려준다. 문서나 챕터가
+// 없으면 undefined.
+async function updatePart<T>(
+  novelId: string,
+  partId: string,
+  mutate: (part: NovelPart) => { result: T; part?: NovelPart }
+): Promise<T | undefined> {
+  const ref = doc(db, NOVELS, novelId);
+  return runTransaction(
+    db,
+    async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return undefined;
+      const novel = snap.data() as Novel;
+      const index = novel.parts.findIndex((p) => p.id === partId);
+      if (index === -1) return undefined;
+      const { result, part } = mutate(novel.parts[index]);
+      if (part) {
+        tx.update(ref, {
+          parts: stripUndefined(
+            novel.parts.map((p, i) => (i === index ? part : p))
+          ),
+        });
+      }
+      return result;
+    },
+    { maxAttempts: TRANSACTION_MAX_ATTEMPTS }
+  );
+}
+
+// 지정한 챕터들을 최신 문서에서 제거한다. 다른 챕터에서 서버가 진행 중인 자동
+// 생성 결과를 화면이 가진 옛 상태로 덮어쓰지 않도록 문서 전체 저장(saveNovel)을
+// 쓰지 않고 트랜잭션으로 처리한다. 삭제된 챕터의 실행은 다음 확인 때 중단된다.
+export async function deleteParts(
+  novelId: string,
+  partIds: string[]
+): Promise<void> {
+  const ref = doc(db, NOVELS, novelId);
+  await runTransaction(
+    db,
+    async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const novel = snap.data() as Novel;
+      tx.update(ref, {
+        parts: novel.parts.filter((p) => !partIds.includes(p.id)),
+      });
+    },
+    { maxAttempts: TRANSACTION_MAX_ATTEMPTS }
+  );
+}
+
+export async function fetchPart(
+  novelId: string,
+  partId: string
+): Promise<NovelPart | null> {
+  const snap = await getDoc(doc(db, NOVELS, novelId));
+  if (!snap.exists()) return null;
+  return (
+    (snap.data() as Novel).parts.find((part) => part.id === partId) ?? null
+  );
+}
+
+// 장면 이미지 한 장의 결과(주소 또는 실패 메시지)를 해당 질문의 슬롯에 기록한다.
+// runId를 주면 그 실행이 아직 현재 실행일 때 진행 시각도 함께 갱신한다. 질문이
+// 이미 사라졌으면(새 실행으로 교체됨) 아무것도 쓰지 않는다.
 async function updateSceneImageSlot(
   novelId: string,
   partId: string,
   dqId: string,
   slot: SceneSlot,
-  value: { url: string } | { error: string }
+  value: { url: string } | { error: string },
+  runId?: string
 ): Promise<void> {
-  const snap = await getDoc(doc(db, NOVELS, novelId));
-  if (!snap.exists()) return;
-  const novel = snap.data() as Novel;
-  const partIndex = novel.parts.findIndex((p) => p.id === partId);
-  if (partIndex === -1) return;
-  const dqIndex = novel.parts[partIndex].discussionQuestions.findIndex(
-    (dq) => dq.id === dqId
-  );
-  if (dqIndex === -1) return;
-  await updateDoc(doc(db, NOVELS, novelId), {
-    [`parts.${partIndex}.discussionQuestions.${dqIndex}.sceneImages.${slot}`]:
-      value,
+  await updatePart(novelId, partId, (part) => {
+    if (!part.discussionQuestions.some((dq) => dq.id === dqId)) {
+      return { result: undefined };
+    }
+    return {
+      result: undefined,
+      part: {
+        ...part,
+        discussionQuestions: part.discussionQuestions.map((dq) =>
+          dq.id === dqId
+            ? { ...dq, sceneImages: { ...dq.sceneImages, [slot]: value } }
+            : dq
+        ),
+        autoRun:
+          runId && isCurrentRun(part.autoRun, runId)
+            ? { ...part.autoRun, updatedAt: new Date().toISOString() }
+            : part.autoRun,
+      },
+    };
   });
 }
 
@@ -151,9 +239,10 @@ export async function saveSceneImage(
   partId: string,
   dqId: string,
   slot: SceneSlot,
-  url: string
+  url: string,
+  runId?: string
 ): Promise<void> {
-  await updateSceneImageSlot(novelId, partId, dqId, slot, { url });
+  await updateSceneImageSlot(novelId, partId, dqId, slot, { url }, runId);
 }
 
 export async function saveSceneImageError(
@@ -161,9 +250,129 @@ export async function saveSceneImageError(
   partId: string,
   dqId: string,
   slot: SceneSlot,
-  message: string
+  message: string,
+  runId?: string
 ): Promise<void> {
-  await updateSceneImageSlot(novelId, partId, dqId, slot, { error: message });
+  await updateSceneImageSlot(
+    novelId,
+    partId,
+    dqId,
+    slot,
+    { error: message },
+    runId
+  );
+}
+
+// ── 자동 생성 실행 기록 ─────────────────────────────────────────────
+
+// 챕터에 새 실행 기록을 남긴다. 이미 서버가 작업 중인 실행이 있으면 시작하지 않는다.
+export async function beginAutoRun(
+  novelId: string,
+  partId: string,
+  run: AutoRun
+): Promise<'started' | 'already-running' | 'not-found'> {
+  const outcome = await updatePart(novelId, partId, (part) =>
+    isAutoRunInProgress(part.autoRun, Date.now())
+      ? { result: 'already-running' as const }
+      : { result: 'started' as const, part: { ...part, autoRun: run } }
+  );
+  return outcome ?? 'not-found';
+}
+
+// 새로 만든 질문·구도 프롬프트로 챕터의 질문 목록을 교체하고 실행을 이미지 단계로
+// 넘긴다. 이 실행이 이미 중지됐거나 교체됐으면 저장하지 않고 null.
+export async function saveGeneratedQuestions(
+  novelId: string,
+  partId: string,
+  runId: string,
+  questions: { text: string; compositionPrompt: string }[]
+): Promise<DiscussionQuestion[] | null> {
+  const saved = await updatePart(novelId, partId, (part) => {
+    if (!isCurrentRun(part.autoRun, runId)) return { result: null };
+    const discussionQuestions: DiscussionQuestion[] = questions.map((q) => ({
+      id: crypto.randomUUID(),
+      text: q.text,
+      compositionPrompt: q.compositionPrompt,
+    }));
+    return {
+      result: discussionQuestions,
+      part: {
+        ...part,
+        discussionQuestions,
+        autoRun: {
+          ...part.autoRun,
+          stage: 'images',
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+  });
+  return saved ?? null;
+}
+
+// 현재 실행일 때만 종료 상태(done/error)를 기록한다. 이미 중지됐거나 새 실행으로
+// 교체됐다면 그 상태를 덮어쓰지 않는다.
+async function endAutoRun(
+  novelId: string,
+  partId: string,
+  runId: string,
+  end: { status: 'done' } | { status: 'error'; error: string }
+): Promise<void> {
+  await updatePart(novelId, partId, (part) =>
+    isCurrentRun(part.autoRun, runId)
+      ? {
+          result: undefined,
+          part: {
+            ...part,
+            autoRun: {
+              ...part.autoRun,
+              ...end,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        }
+      : { result: undefined }
+  );
+}
+
+export async function finishAutoRun(
+  novelId: string,
+  partId: string,
+  runId: string
+): Promise<void> {
+  await endAutoRun(novelId, partId, runId, { status: 'done' });
+}
+
+export async function failAutoRun(
+  novelId: string,
+  partId: string,
+  runId: string,
+  error: string
+): Promise<void> {
+  await endAutoRun(novelId, partId, runId, { status: 'error', error });
+}
+
+// 서버는 이미지 한 장을 시작하기 전마다 실행 상태를 확인하므로, 중지하면 아직
+// 시작하지 않은 이미지는 만들지 않는다. 이미 만들고 있던 이미지는 끝나는 대로 저장된다.
+export async function stopAutoRun(
+  novelId: string,
+  partId: string
+): Promise<void> {
+  await updatePart(novelId, partId, (part) =>
+    part.autoRun?.status === 'running'
+      ? {
+          result: undefined,
+          part: {
+            ...part,
+            autoRun: {
+              ...part.autoRun,
+              status: 'stopped',
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        }
+      : { result: undefined }
+  );
 }
 
 // ── Prompt Templates ─────────────────────────────────────────────

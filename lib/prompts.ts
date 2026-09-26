@@ -37,6 +37,15 @@ export function extractCharNames(text: string): string[] {
   return matches.filter((name, idx) => matches.indexOf(name) === idx);
 }
 
+// 구도 프롬프트에 {이름}으로 등장하는 캐릭터만 골라낸다 (대소문자는 구분하지 않는다).
+export function pickMentionedCharacters<T extends { name: string }>(
+  text: string,
+  characters: T[]
+): T[] {
+  const mentioned = extractCharNames(text).map((name) => name.toLowerCase());
+  return characters.filter((c) => mentioned.includes(c.name.toLowerCase()));
+}
+
 // ── Template rendering ───────────────────────────────────────────
 // 템플릿의 {{var}} 자리를 실제 값으로 치환
 export function renderTemplate(
