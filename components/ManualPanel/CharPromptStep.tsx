@@ -250,7 +250,7 @@ export default function CharPromptStep({
         className="input-field"
         value={charPromptInfo}
         onChange={(e) => setCharPromptInfo(e.target.value)}
-        placeholder="캐릭터 정보 (③에서 Gemini가 생성한 결과 붙여넣기)"
+        placeholder="캐릭터 정보 (⓪-1에서 Gemini가 생성한 결과 붙여넣기)"
         style={{ fontSize: 12, minHeight: 80, marginBottom: 12 }}
       />
       <TemplateFallbackNotice

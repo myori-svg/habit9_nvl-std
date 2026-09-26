@@ -41,7 +41,7 @@ export default function SceneStep({
   const charPromptsText = selectedChars
     .map(
       (c) =>
-        `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ④ 단계에서 생성 필요)'}`
+        `{${c.name}}: ${c.textPrompt || '(텍스트 프롬프트 없음 — ⓪-2 단계에서 생성 필요)'}`
     )
     .join('\n\n');
   const style = getStyleRef(novel.stylePrompt);

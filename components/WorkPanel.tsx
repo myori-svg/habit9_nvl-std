@@ -276,7 +276,7 @@ export default function WorkPanel({ novel }: Props) {
     }
   };
 
-  // ── ①DQ+구도 생성 → ④장면 이미지(DQ당 3장)를 서버가 끝까지 이어서 진행 ──
+  // ── ①DQ+구도 생성 → ③장면 이미지(DQ당 3장)를 서버가 끝까지 이어서 진행 ──
   // 요청은 서버가 접수했다는 응답까지만 기다린다. 이후 진행은 브라우저 탭과
   // 무관하게 서버가 계속하고, 이 화면은 저장된 실행 기록을 구독해서 보여준다.
   const startAutoRun = async (mode: AutoRunMode) => {

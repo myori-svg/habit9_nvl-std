@@ -1,6 +1,6 @@
 'use client';
 import { Check, Copy, RefreshCw, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   normalizeCharacterNames,
   splitQuestionBlocks,
@@ -125,6 +125,32 @@ export function AutoGenStatusList({
       })}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
+  );
+}
+
+// 내용의 줄 수에 맞춰 높이가 늘고 줄어드는 텍스트 상자. 높이는 내용이 정하므로
+// 끌어서 조절하는 핸들은 없다. 최소 높이는 호출하는 쪽의 style.minHeight가 정한다.
+export function AutoGrowTextarea(
+  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
+) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: value가 바뀔 때마다 높이를 다시 재려고 넣은 의존성
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // 먼저 높이를 풀어야 내용이 줄었을 때 scrollHeight가 줄어든 값으로 나온다.
+    // scrollHeight에는 테두리가 빠지므로, border-box 높이에 맞게 테두리 두께를 더한다.
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [props.value]);
+
+  return (
+    <textarea
+      ref={ref}
+      {...props}
+      style={{ ...props.style, overflow: 'hidden', resize: 'none' }}
+    />
   );
 }
 
@@ -695,7 +721,7 @@ export function SaveCompositionBox({
   );
 }
 
-// ③-1 캐릭터 정보 결과 저장
+// ⓪-1 캐릭터 정보 결과 저장
 export function SaveCharInfoBox({ novel }: { novel: Novel }) {
   const { updateCharacter } = useStore();
   const [charName, setCharName] = useState(novel.characters[0]?.name ?? '');
@@ -756,7 +782,7 @@ export function SaveCharInfoBox({ novel }: { novel: Novel }) {
   );
 }
 
-// ③-2 캐릭터 프롬프트 결과 저장
+// ⓪-2 캐릭터 프롬프트 결과 저장
 export function SaveCharPromptBox({
   novel,
   charName,
