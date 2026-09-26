@@ -559,7 +559,7 @@ const saveBoxStyle = {
   border: '1px solid var(--border)',
 } as const;
 
-const saveLabelStyle = {
+export const saveLabelStyle = {
   fontSize: 11,
   letterSpacing: '0.08em',
   textTransform: 'uppercase' as const,

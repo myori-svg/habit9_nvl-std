@@ -9,6 +9,7 @@ import { useStore } from '@/lib/store';
 import type { Novel } from '@/types';
 import CharImageStep from './CharImageStep';
 import CharPromptStep from './CharPromptStep';
+import SaveCharInfoTableBox from './SaveCharInfoTableBox';
 import {
   AutoGrowTextarea,
   PromptBox,
@@ -217,6 +218,8 @@ export default function CharInfoStep({
               <Check size={12} /> 새 캐릭터 저장
             </button>
           )}
+
+          <SaveCharInfoTableBox novel={novel} />
         </div>
       )}
 
