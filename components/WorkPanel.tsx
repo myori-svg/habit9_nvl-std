@@ -36,6 +36,15 @@ const DQ_ROW_ID = 'dq-generation';
 // 서버가 진행 중이거나 끊겼는지 다시 판단하는 주기.
 const NOW_TICK_MS = 15 * 1000;
 
+// 개별 재생성 결과가 이 시간 안에 오지 않으면 서버가 끊긴 것으로 본다.
+// app/api/generate-scene/route.ts의 maxDuration(300초)보다 길어야 한다.
+const SCENE_REGEN_STALE_AFTER_MS = 6 * 60 * 1000;
+
+interface PendingRegen {
+  requestId: string;
+  startedAt: number;
+}
+
 const SLOT_LABELS: Record<SceneSlot, string> = {
   main: '본문',
   optionA: 'Option A',
@@ -162,10 +171,16 @@ export default function WorkPanel({ novel }: Props) {
   const [itemStatus, setItemStatus] = useState<
     Record<string, AutoGenCharStatus>
   >({});
+  // 결과를 기다리는 개별 재생성 요청. 슬롯에 같은 requestId의 결과가 저장되면 끝난다.
+  const [pendingRegens, setPendingRegens] = useState<
+    Record<string, PendingRegen>
+  >({});
 
   const selectedPart = novel.parts.find((p) => p.id === selectedPartId);
   const autoRun = selectedPart?.autoRun;
-  const now = useNow(autoRun?.status === 'running');
+  const now = useNow(
+    autoRun?.status === 'running' || Object.keys(pendingRegens).length > 0
+  );
   const running = isAutoRunInProgress(autoRun, now);
   const busy = starting || running;
 
@@ -201,34 +216,40 @@ export default function WorkPanel({ novel }: Props) {
   const selectPart = (partId: string) => {
     setSelectedPartId(partId);
     setItemStatus({});
+    setPendingRegens({});
     setRequestError('');
   };
 
   // 개별 재생성이 끝나면 Firestore 실시간 구독을 거쳐 novel prop이 갱신된다.
-  // 'running'으로 표시해 둔 항목 중 해당 슬롯에 결과(url/error)가 도착한 것만
-  // 완료/실패로 바꾼다 — 화면이 켜져 있는 동안은 물론, 나갔다 돌아왔을 때도 이
-  // 렌더에서 바로 반영된다.
+  // 기다리는 요청 중 슬롯에 같은 requestId의 결과가 저장된 것만 완료/실패로 바꾼다.
+  // 기존 그림이나 이전 실패 메시지는 다른 요청의 결과라서 완료로 보지 않는다.
+  // 제한 시간이 지나도 결과가 없으면 서버가 끊긴 것으로 보고 실패로 바꾼다.
   useEffect(() => {
-    setItemStatus((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const [key, status] of Object.entries(prev)) {
-        if (status.state !== 'running') continue;
-        const [dqId, slot] = key.split(':') as [string, SceneSlot];
-        const image = selectedPart?.discussionQuestions.find(
-          (d) => d.id === dqId
-        )?.sceneImages?.[slot];
-        if (image?.url) {
-          next[key] = { state: 'done', message: '완료 — 자동 저장됨' };
-          changed = true;
-        } else if (image?.error) {
-          next[key] = { state: 'error', message: image.error };
-          changed = true;
-        }
+    const resolved: Record<string, AutoGenCharStatus> = {};
+    for (const [key, pending] of Object.entries(pendingRegens)) {
+      const [dqId, slot] = key.split(':') as [string, SceneSlot];
+      const image = selectedPart?.discussionQuestions.find((d) => d.id === dqId)
+        ?.sceneImages?.[slot];
+      if (image?.requestId === pending.requestId && image.url) {
+        resolved[key] = { state: 'done', message: '완료 — 자동 저장됨' };
+      } else if (image?.requestId === pending.requestId && image.error) {
+        resolved[key] = { state: 'error', message: image.error };
+      } else if (now - pending.startedAt > SCENE_REGEN_STALE_AFTER_MS) {
+        resolved[key] = {
+          state: 'error',
+          message: '서버가 응답 없이 멈췄어요 — 다시 시도해주세요',
+        };
       }
-      return changed ? next : prev;
+    }
+    const keys = Object.keys(resolved);
+    if (keys.length === 0) return;
+    setItemStatus((prev) => ({ ...prev, ...resolved }));
+    setPendingRegens((prev) => {
+      const next = { ...prev };
+      for (const key of keys) delete next[key];
+      return next;
     });
-  }, [selectedPart]);
+  }, [selectedPart, pendingRegens, now]);
 
   // ── 장면 이미지 1장 개별 재생성 요청 ──
   // 서버가 요청을 받았다는 것만 확인하고 바로 끝난다 — 실제 생성·저장은 서버가
@@ -241,12 +262,17 @@ export default function WorkPanel({ novel }: Props) {
     text: string
   ): Promise<void> => {
     const key = slotKey(dqId, slot);
+    const requestId = crypto.randomUUID();
     setItemStatus((prev) => ({
       ...prev,
       [key]: {
         state: 'running',
         message: '장면 생성 중… (백그라운드에서 계속돼요)',
       },
+    }));
+    setPendingRegens((prev) => ({
+      ...prev,
+      [key]: { requestId, startedAt: Date.now() },
     }));
     try {
       const res = await fetch('/api/generate-scene', {
@@ -258,6 +284,7 @@ export default function WorkPanel({ novel }: Props) {
           dqId,
           dqIndex,
           slot,
+          requestId,
           styleRefImages: novel.styleRefImages,
           stylePrompt: novel.stylePrompt,
           compositionPrompt: text,
@@ -266,9 +293,21 @@ export default function WorkPanel({ novel }: Props) {
           ),
         }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.accepted) {
+        throw new Error(
+          data?.error ??
+            (res.status === 413
+              ? '보내는 이미지가 너무 커요 — 스타일 참고 이미지를 줄이거나 몇 장 빼주세요'
+              : `요청이 거절됐어요 (HTTP ${res.status})`)
+        );
+      }
     } catch (e) {
+      setPendingRegens((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
       setItemStatus((prev) => ({
         ...prev,
         [key]: { state: 'error', message: String(e) },
@@ -284,6 +323,7 @@ export default function WorkPanel({ novel }: Props) {
     setStarting(true);
     setRequestError('');
     setItemStatus({});
+    setPendingRegens({});
     try {
       const res = await fetch('/api/auto-run', {
         method: 'POST',
@@ -638,6 +678,9 @@ function SceneSlotCard({
   const running = status?.state === 'running';
   const imgSrc = image?.url;
   const failed = status?.state === 'error' || Boolean(image?.error);
+  // 재생성이 실패해도 기존 그림은 남아 있으므로, 그림 유무와 상관없이 실패 이유를 보여준다.
+  const failureMessage =
+    status?.state === 'error' ? status.message : image?.error;
   const disabledStyle = regenerateDisabled
     ? { opacity: 0.5, cursor: 'not-allowed' }
     : undefined;
@@ -723,6 +766,24 @@ function SceneSlotCard({
         >
           {failed ? '실패 — 재시도' : '이미지 생성'}
         </button>
+      )}
+      {!running && failureMessage && (
+        <p
+          title={failureMessage}
+          style={{
+            margin: '6px 0 0',
+            fontSize: 10,
+            lineHeight: 1.4,
+            color: 'var(--crimson)',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'break-word',
+          }}
+        >
+          {failureMessage}
+        </p>
       )}
     </div>
   );

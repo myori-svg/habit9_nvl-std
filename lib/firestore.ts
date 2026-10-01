@@ -21,6 +21,7 @@ import type {
   GrammarRun,
   Novel,
   NovelPart,
+  SceneImage,
   SceneSlot,
 } from '@/types';
 import { isAutoRunInProgress, isCurrentRun } from './auto-run';
@@ -207,17 +208,25 @@ export async function fetchPart(
   );
 }
 
+// 장면 결과를 누가 만들었는지. runId는 자동 생성 실행, requestId는 개별 재생성 요청.
+interface SceneResultSource {
+  runId?: string;
+  requestId?: string;
+}
+
 // 장면 이미지 한 장의 결과(주소 또는 실패 메시지)를 해당 질문의 슬롯에 기록한다.
-// runId를 주면 그 실행이 아직 현재 실행일 때 진행 시각도 함께 갱신한다. 질문이
-// 이미 사라졌으면(새 실행으로 교체됨) 아무것도 쓰지 않는다.
+// runId를 주면 그 실행이 아직 현재 실행일 때 진행 시각도 함께 갱신한다. requestId는
+// 결과와 함께 저장해서, 같은 실패가 반복돼도 슬롯 내용이 바뀌어 화면이 도착을 알 수
+// 있게 한다. 질문이 이미 사라졌으면(새 실행으로 교체됨) 아무것도 쓰지 않는다.
 async function updateSceneImageSlot(
   novelId: string,
   partId: string,
   dqId: string,
   slot: SceneSlot,
-  value: { url: string } | { error: string },
-  runId?: string
+  result: { url: string } | { error: string },
+  { runId, requestId }: SceneResultSource
 ): Promise<void> {
+  const value: SceneImage = { ...result, requestId };
   await updatePart(novelId, partId, (part) => {
     if (!part.discussionQuestions.some((dq) => dq.id === dqId)) {
       return { result: undefined };
@@ -246,9 +255,9 @@ export async function saveSceneImage(
   dqId: string,
   slot: SceneSlot,
   url: string,
-  runId?: string
+  source: SceneResultSource = {}
 ): Promise<void> {
-  await updateSceneImageSlot(novelId, partId, dqId, slot, { url }, runId);
+  await updateSceneImageSlot(novelId, partId, dqId, slot, { url }, source);
 }
 
 export async function saveSceneImageError(
@@ -257,7 +266,7 @@ export async function saveSceneImageError(
   dqId: string,
   slot: SceneSlot,
   message: string,
-  runId?: string
+  source: SceneResultSource = {}
 ): Promise<void> {
   await updateSceneImageSlot(
     novelId,
@@ -265,7 +274,7 @@ export async function saveSceneImageError(
     dqId,
     slot,
     { error: message },
-    runId
+    source
   );
 }
 

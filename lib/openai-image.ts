@@ -27,6 +27,27 @@ function extensionOf(mime: string): string {
   return mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
 }
 
+// 이미지 생성 API가 거절한 응답. status로 다시 시도할 만한 실패인지 판단한다.
+export class OpenAIImageError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfterMs: number | null
+  ) {
+    super(message);
+  }
+}
+
+// 요청 한도 초과는 "Please try again in 12s"처럼 메시지에 대기 시간을 알려준다.
+function parseRetryAfterMs(res: Response, message: string): number | null {
+  const header = Number(res.headers.get('retry-after'));
+  if (header > 0) return header * 1000;
+  const match = message.match(/try again in (\d+(?:\.\d+)?)(ms|s)\b/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return match[2].toLowerCase() === 'ms' ? value : value * 1000;
+}
+
 export async function readOpenAIError(res: Response): Promise<string> {
   const body = await res.text();
   try {
@@ -85,10 +106,49 @@ export async function generateImage(
     });
   }
 
-  if (!res.ok) throw new Error(await readOpenAIError(res));
+  if (!res.ok) {
+    const message = await readOpenAIError(res);
+    throw new OpenAIImageError(
+      message,
+      res.status,
+      parseRetryAfterMs(res, message)
+    );
+  }
 
   const json = (await res.json()) as { data?: { b64_json?: string }[] };
   const imageBase64 = json.data?.[0]?.b64_json;
   if (!imageBase64) throw new Error('OpenAI가 이미지를 반환하지 않았습니다');
   return { imageBase64, imageMime: `image/${OUTPUT_FORMAT}` };
+}
+
+// 요청 한도 초과(429)와 일시적인 서버 오류(5xx)만 기다렸다가 다시 시도한다. 키 오류
+// 같은 나머지 실패는 다시 해도 같으므로 바로 던진다. 대기 시간이 길어지므로 최대 실행
+// 시간이 넉넉한 백그라운드 작업에서만 쓴다.
+const MAX_RETRIES = 3;
+const DEFAULT_RETRY_WAIT_MS = 15 * 1000;
+const MAX_RETRY_WAIT_MS = 60 * 1000;
+
+function isTransient(e: unknown): e is OpenAIImageError {
+  return e instanceof OpenAIImageError && (e.status === 429 || e.status >= 500);
+}
+
+export async function generateImageWithRetry(
+  prompt: string,
+  referenceImages: ReferenceImage[] = []
+): Promise<GeneratedImage> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await generateImage(prompt, referenceImages);
+    } catch (e) {
+      if (attempt >= MAX_RETRIES || !isTransient(e)) throw e;
+      const waitMs = Math.min(
+        (e.retryAfterMs ?? DEFAULT_RETRY_WAIT_MS) + Math.random() * 2000,
+        MAX_RETRY_WAIT_MS
+      );
+      console.warn(
+        `[openai-image] ${e.status} — ${Math.round(waitMs / 1000)}초 뒤 다시 시도 (${attempt + 1}/${MAX_RETRIES})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
 }
