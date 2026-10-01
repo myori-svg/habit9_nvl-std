@@ -77,6 +77,7 @@ export const PROMPT_TEMPLATE_KEYS = [
   'charPrompt',
   'charImage',
   'scene',
+  'grammar',
 ] as const;
 
 export type PromptTemplateKey = (typeof PROMPT_TEMPLATE_KEYS)[number];
@@ -159,7 +160,100 @@ export const DEFAULT_PROMPT_TEMPLATES: Record<PromptTemplateKey, string> = {
 
 <character prompt>
 {{charPromptsText}}`,
+
+  grammar: `You are an expert English grammar teacher who creates high-quality Golden Bell quizzes for upper-elementary students.
+
+First, carefully analyze the uploaded textbook pages or the Unit I provide. Do not use grammar points from other units. Before writing the quiz, briefly confirm:
+
+- Unit title:
+- Exact grammar scope:
+- Key contrasts students must understand:
+- Common mistakes students are likely to make:
+
+Then create a challenging but fair Golden Bell Quiz.
+
+[Class Profile]
+- Students: Upper elementary / early middle school learners
+- Level: High-level class
+- Goal: Test whether students can apply grammar in meaningful contexts, not simply memorize rules.
+- Language: Write all questions, directions, choices, and answers in English.
+- Tone: Natural, clear, age-appropriate, and occasionally humorous.
+
+[Quiz Format]
+{{quizFormat}}
+- Include an answer key and a very short explanation for every answer.
+- Do not include excessively long reading passages.
+
+[Quality Standards]
+1. Stay strictly within the grammar scope of this Unit.
+   - Do not accidentally test grammar from a later or earlier Unit.
+   - Vocabulary may be slightly challenging, but it must not make the grammar question unclear.
+
+2. Make the quiz challenging through context and meaning.
+   - Students should need to notice time expressions, sequence, intention, certainty, duration, result, or the speaker’s meaning.
+   - Avoid too many simple fill-in-the-blank questions that can be answered mechanically.
+
+3. Make every question fair and unambiguous.
+   - There must be only one clearly best answer.
+   - Check that every incorrect option is definitely wrong for a grammatical or contextual reason.
+   - Do not create questions where two answers could sound natural in real life.
+
+4. Create strong distractors.
+   - Wrong answers should reflect realistic student mistakes:
+     - confusing similar grammar forms
+     - using the wrong time expression
+     - using a correct form in the wrong context
+     - confusing word order, agreement, tense, or meaning
+   - Do not use silly or obviously impossible distractors.
+
+5. Vary the question types.
+   Across the {{multipleChoiceCount}} multiple-choice questions, include a balanced mixture of:
+   - choose the correct sentence
+   - choose the incorrect sentence
+   - context-based grammar choice
+   - error detection
+   - sentence meaning / nuance comparison
+   - sentence completion
+   - word order or punctuation, if relevant to the Unit
+
+6. Design the short-answer section with variety.
+   Include a balanced mixture of:
+   - correcting one error
+   - completing a sentence with the correct grammatical form
+   - rewriting a sentence using a target structure
+   - arranging words into a natural sentence
+   - writing one original sentence from a short situation or prompt
+
+7. Difficulty balance:
+{{difficultyBalance}}
+
+8. Use natural and engaging examples.
+   - Use everyday situations, school life, friendships, travel, food, pets, games, and funny situations.
+   - You may naturally include Sean and Bbomi in about 3–5 questions.
+   - Humor should support the context, not distract from the grammar point.
+
+[Final Self-Check]
+Before showing the quiz, silently check:
+- Is every question based only on this Unit?
+- Is there exactly one correct answer for every multiple-choice question?
+- Are the explanations accurate and simple?
+- Are there at least {{trickyCount}} high-quality “trap” questions?
+- Are there no duplicate grammar patterns or nearly identical questions?
+- Would a strong student need to think, rather than simply spot a memorized form?
+{{extraRequest}}`,
 };
+
+// ── Grammar 퀴즈 출력 형식 (코드 소유, 템플릿과 별개로 프롬프트 끝에 첨부) ──
+// 여기 적힌 필드는 lib/grammar-generation.ts의 응답 스키마·파서와 짝이다. 한쪽을
+// 바꾸면 다른 쪽도 바꾼다.
+export const GRAMMAR_OUTPUT_FORMAT_INSTRUCTION = `[Output Format]
+Return one JSON object that follows the response schema.
+- analysis: the Unit analysis requested above (unitTitle, grammarScope, keyContrasts, commonMistakes).
+- questions: every quiz question in order, all multiple-choice questions first, then all short-answer questions.
+  - Do not write question numbers, option letters, or the answer inside "question".
+  - multiple-choice: "choices" lists only the option texts in order, without "A." or "B." labels. "answer" is only the letter of the correct option, for example "B".
+  - short-answer: "choices" is an empty array. "answer" is only the model answer, with no explanation.
+  - explanation: one very short sentence explaining the answer.`;
 
 // ── Manual Mode 출력 형식 안내 (코드 소유, 템플릿과 별개로 프롬프트 끝에 첨부) ──
 // 여기 적힌 구분자와 구조는 lib/output-format.ts의 파서(splitQuestionBlocks,
@@ -265,6 +359,20 @@ export const TEMPLATE_VARIABLES: Record<PromptTemplateKey, TemplateVariable[]> =
         name: 'charPromptsText',
         label: '등장 캐릭터 프롬프트',
         required: true,
+      },
+    ],
+    grammar: [
+      {
+        name: 'quizFormat',
+        label: '문제 수와 유형 구성 (입력한 개수로 채워짐)',
+        required: true,
+      },
+      { name: 'multipleChoiceCount', label: '객관식 문제 수' },
+      { name: 'difficultyBalance', label: '문제 수에 맞춘 난이도 배분' },
+      { name: 'trickyCount', label: '함정 문제 최소 개수' },
+      {
+        name: 'extraRequest',
+        label: '선생님의 추가 요청 (입력하지 않았으면 빈칸)',
       },
     ],
   };
@@ -391,4 +499,73 @@ export function buildScenePrompt(
       sceneComposition || '(구도 프롬프트를 입력하거나 DQ를 선택하세요)',
     charPromptsText: charPromptsText || '(캐릭터를 선택하세요)',
   });
+}
+
+// ── Grammar 퀴즈 프롬프트 ─────────────────────────────────────────
+
+function describeQuestionRange(start: number, end: number): string {
+  return start === end ? `Question ${start}` : `Questions ${start}–${end}`;
+}
+
+// 문제 수 15(객관식 10 + 서술형 5)를 기준으로 짠 난이도 배분(1–5 보통, 6–12 어려움,
+// 13–15 결승 라운드)을 문제 수에 비례해 옮긴다.
+function buildDifficultyBalance(total: number, trickyCount: number): string {
+  const mediumEnd = Math.round(total / 3);
+  const finalCount = Math.round(total / 5);
+  const finalStart = total - finalCount + 1;
+  const lines: string[] = [];
+  if (mediumEnd >= 1)
+    lines.push(`- ${describeQuestionRange(1, mediumEnd)}: medium difficulty`);
+  if (mediumEnd + 1 <= finalStart - 1)
+    lines.push(
+      `- ${describeQuestionRange(mediumEnd + 1, finalStart - 1)}: challenging`
+    );
+  if (finalCount >= 1)
+    lines.push(
+      `- ${describeQuestionRange(finalStart, total)}: Golden Bell final-round difficulty`
+    );
+  lines.push(
+    `- At least ${trickyCount} questions should be genuinely tricky, but still fully solvable using only this Unit’s grammar rules.`
+  );
+  return lines.join('\n');
+}
+
+function buildQuizFormat(
+  multipleChoiceCount: number,
+  shortAnswerCount: number
+): string {
+  const total = multipleChoiceCount + shortAnswerCount;
+  const lines = [`- ${total} questions total`];
+  if (multipleChoiceCount > 0)
+    lines.push(
+      `  - ${describeQuestionRange(1, multipleChoiceCount)}: Multiple choice`
+    );
+  else lines.push('- Do not include any multiple choice questions.');
+  if (shortAnswerCount > 0)
+    lines.push(
+      `  - ${describeQuestionRange(multipleChoiceCount + 1, total)}: Short answer / written response`
+    );
+  else lines.push('- Do not include any short answer questions.');
+  return lines.join('\n');
+}
+
+export function buildGrammarPrompt(
+  counts: { multipleChoiceCount: number; shortAnswerCount: number },
+  extraRequest: string,
+  template: string = DEFAULT_PROMPT_TEMPLATES.grammar
+): string {
+  const { multipleChoiceCount, shortAnswerCount } = counts;
+  const total = multipleChoiceCount + shortAnswerCount;
+  const trickyCount = Math.min(3, Math.max(1, Math.round(total / 5)));
+  const request = extraRequest.trim();
+  const rendered = renderTemplate(template, {
+    quizFormat: buildQuizFormat(multipleChoiceCount, shortAnswerCount),
+    multipleChoiceCount: String(multipleChoiceCount),
+    difficultyBalance: buildDifficultyBalance(total, trickyCount),
+    trickyCount: String(trickyCount),
+    extraRequest: request
+      ? `\n[Additional Request from the Teacher]\n${request}`
+      : '',
+  });
+  return `${rendered}\n\n${GRAMMAR_OUTPUT_FORMAT_INSTRUCTION}`;
 }

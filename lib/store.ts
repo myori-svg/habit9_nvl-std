@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type {
   Character,
   DiscussionQuestion,
+  GrammarJob,
   HistoryEntry,
   Novel,
 } from '@/types';
@@ -12,8 +13,10 @@ import {
   deletePromptTemplate as fbDeletePromptTemplate,
   savePromptTemplate as fbSavePromptTemplate,
   stopAutoRun as fbStopAutoRun,
+  stopGrammarRun as fbStopGrammarRun,
   saveCharacterImage,
   saveNovel,
+  subscribeGrammarJobs,
   subscribeNovels,
   subscribePromptTemplates,
 } from './firestore';
@@ -77,8 +80,12 @@ interface AppStore {
   ) => Promise<void>;
   resetPromptTemplate: (key: PromptTemplateKey) => Promise<void>;
 
+  grammarJobs: GrammarJob[];
+  stopGrammarRun: (jobId: string) => Promise<void>;
+
   unsubscribe: (() => void) | null;
   promptUnsubscribe: (() => void) | null;
+  grammarUnsubscribe: (() => void) | null;
   startSync: () => void;
   stopSync: () => void;
 }
@@ -334,23 +341,42 @@ export const useStore = create<AppStore>()(
         await fbDeletePromptTemplate(key);
       },
 
+      // 작업 기록은 서버가 쓰는 값이라 로컬 state를 먼저 고치지 않고, 저장 후
+      // 구독으로 들어오는 갱신을 그대로 따른다.
+      grammarJobs: [],
+      stopGrammarRun: async (jobId) => {
+        await fbStopGrammarRun(jobId);
+      },
+
       unsubscribe: null,
       promptUnsubscribe: null,
+      grammarUnsubscribe: null,
 
       startSync: () => {
-        const { unsubscribe: existing, promptUnsubscribe: existingPrompt } =
-          get();
+        const {
+          unsubscribe: existing,
+          promptUnsubscribe: existingPrompt,
+          grammarUnsubscribe: existingGrammar,
+        } = get();
         if (existing) existing();
         if (existingPrompt) existingPrompt();
+        if (existingGrammar) existingGrammar();
         const unsub = subscribeNovels((novels) => set({ novels }));
         const promptUnsub = subscribePromptTemplates((promptTemplates) =>
           set({ promptTemplates })
         );
-        set({ unsubscribe: unsub, promptUnsubscribe: promptUnsub });
+        const grammarUnsub = subscribeGrammarJobs((grammarJobs) =>
+          set({ grammarJobs })
+        );
+        set({
+          unsubscribe: unsub,
+          promptUnsubscribe: promptUnsub,
+          grammarUnsubscribe: grammarUnsub,
+        });
       },
 
       stopSync: () => {
-        const { unsubscribe, promptUnsubscribe } = get();
+        const { unsubscribe, promptUnsubscribe, grammarUnsubscribe } = get();
         if (unsubscribe) {
           unsubscribe();
           set({ unsubscribe: null });
@@ -358,6 +384,10 @@ export const useStore = create<AppStore>()(
         if (promptUnsubscribe) {
           promptUnsubscribe();
           set({ promptUnsubscribe: null });
+        }
+        if (grammarUnsubscribe) {
+          grammarUnsubscribe();
+          set({ grammarUnsubscribe: null });
         }
       },
     }),

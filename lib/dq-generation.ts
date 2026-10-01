@@ -1,4 +1,5 @@
 import {
+  GEMINI_TEXT_MODEL,
   generateContentWithRetry,
   getGenAI,
   PERMISSIVE_SAFETY_SETTINGS,
@@ -18,8 +19,6 @@ import {
   buildDQPrompt,
   resolvePromptTemplate,
 } from '@/lib/prompts';
-
-const TEXT_MODEL = 'gemini-3.6-flash';
 
 export interface QuestionDraft {
   text: string;
@@ -50,7 +49,7 @@ export async function generateQuestionDrafts({
 
   // ── Step 1: Discussion Questions (응답 구조는 스키마로 강제) ──────
   const dqResult = await generateContentWithRetry(ai, {
-    model: TEXT_MODEL,
+    model: GEMINI_TEXT_MODEL,
     contents: buildDQPrompt(
       novelTitle,
       partContent,
@@ -80,7 +79,7 @@ export async function generateQuestionDrafts({
   const drafts: QuestionDraft[] = [];
   for (const questionText of questionTexts) {
     const compResult = await generateContentWithRetry(ai, {
-      model: TEXT_MODEL,
+      model: GEMINI_TEXT_MODEL,
       contents: buildCompositionPrompt(
         questionText,
         compositionTemplateText,

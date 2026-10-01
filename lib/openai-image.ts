@@ -27,7 +27,7 @@ function extensionOf(mime: string): string {
   return mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
 }
 
-async function readOpenAIError(res: Response): Promise<string> {
+export async function readOpenAIError(res: Response): Promise<string> {
   const body = await res.text();
   try {
     const message = JSON.parse(body)?.error?.message;

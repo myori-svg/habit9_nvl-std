@@ -108,3 +108,67 @@ export interface HistoryEntry {
   prompt: string;
   createdAt: string;
 }
+
+// ── Grammar 퀴즈 ──────────────────────────────────────────────────
+
+export type GrammarQuestionType = 'multiple-choice' | 'short-answer';
+
+// gemini가 기본이고, 실패했을 때만 openai가 대신 만든다.
+export type GrammarProvider = 'gemini' | 'openai';
+
+export interface GrammarQuestion {
+  number: number;
+  type: GrammarQuestionType;
+  question: string; // 번호·보기 없이 문제 문장만
+  choices: string[]; // 객관식의 보기 문장(A. B. 표기 없이). 서술형은 빈 배열
+  answer: string; // 객관식은 보기 글자(예: "B"), 서술형은 모범 답안만
+  explanation: string;
+}
+
+export interface GrammarAnalysis {
+  unitTitle: string;
+  grammarScope: string;
+  keyContrasts: string[];
+  commonMistakes: string[];
+}
+
+export interface GrammarResult {
+  provider: GrammarProvider;
+  geminiFailure?: string; // provider가 openai일 때, gemini가 실패한 이유
+  analysis: GrammarAnalysis;
+  questions: GrammarQuestion[];
+  generatedAt: string;
+}
+
+// path는 비공개 보관함 안의 경로
+export interface GrammarInputFile {
+  path: string;
+  name: string;
+  mime: string;
+}
+
+export interface GrammarJobInput {
+  files: GrammarInputFile[];
+  multipleChoiceCount: number;
+  shortAnswerCount: number;
+  extraRequest: string;
+}
+
+export type GrammarRunStatus = 'running' | 'stopped' | 'error' | 'done';
+
+export interface GrammarRun {
+  id: string; // 실행마다 새로 발급 — 중지·교체된 실행의 뒤늦은 결과를 걸러내는 표식
+  status: GrammarRunStatus;
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
+export interface GrammarJob {
+  id: string;
+  createdAt: string;
+  input: GrammarJobInput;
+  run: GrammarRun;
+  // 가장 최근에 성공한 결과. 다시 생성하는 중이거나 실패해도 지우지 않는다.
+  result?: GrammarResult;
+}
