@@ -62,6 +62,8 @@ export interface SceneImage {
   mime?: string;
   url?: string; // Vercel Blob URL (persistent)
   error?: string; // 서버 백그라운드 생성 실패 시 메시지 (새로고침 후에도 보이도록)
+  // 이 결과를 만든 개별 재생성 요청의 ID. 화면이 이전 결과와 이번 요청의 결과를 구분한다.
+  requestId?: string;
 }
 
 export interface DiscussionQuestion {

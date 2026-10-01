@@ -106,7 +106,9 @@ async function generateSceneForItem(
       compositionPrompt: item.text,
       characters: pickMentionedCharacters(item.text, input.characters),
     });
-    await saveSceneImage(novelId, partId, item.dqId, item.slot, url, runId);
+    await saveSceneImage(novelId, partId, item.dqId, item.slot, url, {
+      runId,
+    });
   } catch (e) {
     console.error('[auto-run] 장면 이미지 생성 실패', item.dqId, item.slot, e);
     await saveSceneImageError(
@@ -115,7 +117,7 @@ async function generateSceneForItem(
       item.dqId,
       item.slot,
       String(e),
-      runId
+      { runId }
     ).catch((saveError) =>
       console.error('[auto-run] 실패 기록 저장 실패', saveError)
     );

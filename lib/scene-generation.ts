@@ -1,5 +1,8 @@
 import { fetchBlobImage } from '@/lib/image-url';
-import { generateImage, type ReferenceImage } from '@/lib/openai-image';
+import {
+  generateImageWithRetry,
+  type ReferenceImage,
+} from '@/lib/openai-image';
 import { uploadSceneImageToBlob } from '@/lib/scene-image-storage';
 import type { SceneSlot } from '@/types';
 
@@ -74,7 +77,8 @@ export interface SceneImageRequest {
 }
 
 // 장면 이미지 한 장을 만들어 보관함의 고정 자리에 올리고, 화면용 주소를 돌려준다.
-// Firestore 반영은 호출하는 쪽이 한다.
+// Firestore 반영은 호출하는 쪽이 한다. 서버 백그라운드 작업에서만 호출되므로 요청
+// 한도 초과·일시적 오류는 기다렸다가 다시 시도한다.
 export async function generateSceneImageUrl(
   request: SceneImageRequest
 ): Promise<string> {
@@ -87,7 +91,7 @@ export async function generateSceneImageUrl(
     request.styleRefImages,
     request.characters
   );
-  const { imageBase64, imageMime } = await generateImage(
+  const { imageBase64, imageMime } = await generateImageWithRetry(
     prompt,
     referenceImages
   );
