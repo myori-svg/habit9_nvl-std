@@ -26,6 +26,8 @@ export const PERMISSIVE_SAFETY_SETTINGS = [
   threshold: HarmBlockThreshold.BLOCK_NONE,
 }));
 
+export const GEMINI_TEXT_MODEL = 'gemini-3.6-flash';
+
 export function getGenAI(): GoogleGenAI {
   return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
 }

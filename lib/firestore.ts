@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -15,6 +16,9 @@ import {
 import type {
   AutoRun,
   DiscussionQuestion,
+  GrammarJob,
+  GrammarResult,
+  GrammarRun,
   Novel,
   NovelPart,
   SceneSlot,
@@ -22,11 +26,13 @@ import type {
 import { isAutoRunInProgress, isCurrentRun } from './auto-run';
 import { uploadImageToBlob } from './blob-upload';
 import { db } from './firebase';
+import { isCurrentGrammarRun, isGrammarRunInProgress } from './grammar-job';
 import type { PromptTemplateKey } from './prompts';
 
 // ── Collections ──────────────────────────────────────────────────
 const NOVELS = 'novels';
 const PROMPT_TEMPLATES = 'promptTemplates';
+const GRAMMAR_JOBS = 'grammarJobs';
 
 // ── Novel CRUD ───────────────────────────────────────────────────
 
@@ -406,4 +412,143 @@ export async function deletePromptTemplate(
   key: PromptTemplateKey
 ): Promise<void> {
   await deleteDoc(doc(db, PROMPT_TEMPLATES, key));
+}
+
+// ── Grammar 퀴즈 작업 ────────────────────────────────────────────
+
+const GRAMMAR_JOBS_SUBSCRIBE_LIMIT = 50;
+
+export function subscribeGrammarJobs(
+  cb: (jobs: GrammarJob[]) => void
+): Unsubscribe {
+  return onSnapshot(
+    query(
+      collection(db, GRAMMAR_JOBS),
+      orderBy('createdAt', 'desc'),
+      limit(GRAMMAR_JOBS_SUBSCRIBE_LIMIT)
+    ),
+    (snap) => cb(snap.docs.map((d) => d.data() as GrammarJob))
+  );
+}
+
+export async function fetchGrammarJobs(): Promise<GrammarJob[]> {
+  const snap = await getDocs(collection(db, GRAMMAR_JOBS));
+  return snap.docs.map((d) => d.data() as GrammarJob);
+}
+
+export async function fetchGrammarJob(
+  jobId: string
+): Promise<GrammarJob | null> {
+  const snap = await getDoc(doc(db, GRAMMAR_JOBS, jobId));
+  return snap.exists() ? (snap.data() as GrammarJob) : null;
+}
+
+export async function createGrammarJob(job: GrammarJob): Promise<void> {
+  await setDoc(doc(db, GRAMMAR_JOBS, job.id), stripUndefined(job));
+}
+
+export async function deleteGrammarJob(jobId: string): Promise<void> {
+  await deleteDoc(doc(db, GRAMMAR_JOBS, jobId));
+}
+
+// 작업 문서를 "최신 문서 읽기 → 고치기 → 쓰기"를 트랜잭션으로 묶어 갱신한다.
+// mutate가 job을 돌려주지 않으면 쓰지 않고 result만 돌려준다. 문서가 없으면 undefined.
+async function updateGrammarJob<T>(
+  jobId: string,
+  mutate: (job: GrammarJob) => { result: T; job?: GrammarJob }
+): Promise<T | undefined> {
+  const ref = doc(db, GRAMMAR_JOBS, jobId);
+  return runTransaction(
+    db,
+    async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return undefined;
+      const { result, job } = mutate(snap.data() as GrammarJob);
+      if (job) tx.set(ref, stripUndefined(job) as GrammarJob);
+      return result;
+    },
+    { maxAttempts: TRANSACTION_MAX_ATTEMPTS }
+  );
+}
+
+// 다시 생성할 때 새 실행 기록을 남긴다. 이미 서버가 작업 중이면 시작하지 않는다.
+// 이전 결과는 새 결과가 나올 때까지 그대로 둔다.
+export async function beginGrammarRun(
+  jobId: string,
+  run: GrammarRun
+): Promise<'started' | 'already-running' | 'not-found'> {
+  const outcome = await updateGrammarJob(jobId, (job) =>
+    isGrammarRunInProgress(job.run, Date.now())
+      ? { result: 'already-running' as const }
+      : { result: 'started' as const, job: { ...job, run } }
+  );
+  return outcome ?? 'not-found';
+}
+
+// 이 실행이 아직 현재 실행일 때만 결과를 저장한다. 중지됐거나 교체됐으면 버린다.
+export async function finishGrammarRun(
+  jobId: string,
+  runId: string,
+  result: GrammarResult
+): Promise<void> {
+  await updateGrammarJob(jobId, (job) =>
+    isCurrentGrammarRun(job.run, runId)
+      ? {
+          result: undefined,
+          job: {
+            ...job,
+            result,
+            run: {
+              ...job.run,
+              status: 'done',
+              error: undefined,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        }
+      : { result: undefined }
+  );
+}
+
+// 현재 실행일 때만 실패를 기록한다. 이전에 성공한 결과는 지우지 않는다.
+export async function failGrammarRun(
+  jobId: string,
+  runId: string,
+  error: string
+): Promise<void> {
+  await updateGrammarJob(jobId, (job) =>
+    isCurrentGrammarRun(job.run, runId)
+      ? {
+          result: undefined,
+          job: {
+            ...job,
+            run: {
+              ...job.run,
+              status: 'error',
+              error,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        }
+      : { result: undefined }
+  );
+}
+
+// 서버는 이미 보낸 AI 요청을 취소하지 못하지만, 중지하면 그 결과는 저장하지 않는다.
+export async function stopGrammarRun(jobId: string): Promise<void> {
+  await updateGrammarJob(jobId, (job) =>
+    job.run.status === 'running'
+      ? {
+          result: undefined,
+          job: {
+            ...job,
+            run: {
+              ...job.run,
+              status: 'stopped',
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        }
+      : { result: undefined }
+  );
 }

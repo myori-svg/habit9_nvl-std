@@ -216,7 +216,11 @@ export function TemplateFallbackNotice({
 // 저장된 템플릿을 {{자리표시자}}가 보이는 원본 그대로 편집한다. 화면에 조립된
 // 프롬프트에서 자리표시자를 역추적하지 않고 입력한 원본을 그대로 저장하며, 필수
 // 자리표시자가 빠졌거나 정의되지 않은 자리표시자가 있으면 저장하지 못한다.
-function TemplateEditor({ templateKey }: { templateKey: PromptTemplateKey }) {
+export function TemplateEditor({
+  templateKey,
+}: {
+  templateKey: PromptTemplateKey;
+}) {
   const { promptTemplates, savePromptTemplate, resetPromptTemplate } =
     useStore();
   const stored = promptTemplates[templateKey];
@@ -237,7 +241,9 @@ function TemplateEditor({ templateKey }: { templateKey: PromptTemplateKey }) {
     missing.length === 0 &&
     unknown.length === 0;
   const formatManagedByCode =
-    templateKey === 'dq' || templateKey === 'composition';
+    templateKey === 'dq' ||
+    templateKey === 'composition' ||
+    templateKey === 'grammar';
 
   const handleSave = async () => {
     setError('');

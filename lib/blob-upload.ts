@@ -11,6 +11,49 @@ export const ALLOWED_IMAGE_CONTENT_TYPES = [
 ] as const;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+// Grammar 퀴즈 입력 파일(교재 사진·PDF)은 작업 단위로 한 폴더에 둔다.
+export const GRAMMAR_FILE_PATH_PATTERN =
+  /^grammar\/[\w-]+\/[\w-]+\.(webp|png|jpg|pdf)$/;
+export const GRAMMAR_ALLOWED_CONTENT_TYPES = [
+  ...ALLOWED_IMAGE_CONTENT_TYPES,
+  'application/pdf',
+] as const;
+
+export function grammarJobFolder(jobId: string): string {
+  return `grammar/${jobId}/`;
+}
+
+const GRAMMAR_EXTENSION_BY_MIME: Record<string, string> = {
+  'image/webp': 'webp',
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'application/pdf': 'pdf',
+};
+
+export function grammarFilePath(
+  jobId: string,
+  index: number,
+  mime: string
+): string {
+  const extension = GRAMMAR_EXTENSION_BY_MIME[mime];
+  if (!extension) throw new Error(`지원하지 않는 파일 형식입니다: ${mime}`);
+  return `${grammarJobFolder(jobId)}${index}.${extension}`;
+}
+
+// 브라우저에서 Blob으로 직접 올리고 저장된 경로를 돌려준다.
+export async function uploadGrammarFile(
+  pathname: string,
+  file: Blob,
+  mime: string
+): Promise<string> {
+  const blob = await upload(pathname, file, {
+    access: 'private',
+    handleUploadUrl: '/api/blob-upload',
+    contentType: mime,
+  });
+  return blob.pathname;
+}
+
 const EXTENSION_BY_MIME: Record<string, string> = {
   'image/webp': 'webp',
   'image/png': 'png',

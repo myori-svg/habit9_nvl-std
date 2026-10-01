@@ -38,6 +38,7 @@
 |[AM-04](active/AM-04.md)|자동 모드 스타일 참고 이미지 관리 UI|Auto Mode|진행 중 (UI 완료, 영구 저장 남음)|
 |[AM-05](active/AM-05.md)|자동 모드 장면 이미지 백그라운드 생성 + 영구 저장|Auto Mode|진행 중 (구현 완료, 실사용 확인 대기)|
 |[AM-06](active/AM-06.md)|자동 모드 전체 파이프라인 서버 백그라운드 실행|Auto Mode|진행 중 (구현·로직 검증 완료, 실사용 확인 대기)|
+|[GR-02](active/GR-02.md)|Grammar 탭 — 골든벨 퀴즈 백그라운드 생성|Grammar Studio|진행 중 (구현·로직 검증 완료, 실사용 확인 대기)|
 
 ## 🟢 나중에 (backlog)
 
@@ -53,7 +54,6 @@
 |[AR-01](backlog/AR-01.md)|Archive 탭 구현|저장·아카이브|
 |[UX-02](backlog/UX-02.md)|새로고침 경고 모달|공통 UX|
 |[UX-04](backlog/UX-04.md)|API 키 저장 보안|공통 UX|
-|[GR-01](backlog/GR-01.md)|Grammar Studio 기획|Grammar Studio|
 |[PP-01](backlog/PP-01.md)|PPT 콘텐츠 생성|PPT Generator|
 |[PP-02](backlog/PP-02.md)|PPT 조립 (PPTX Skill API)|PPT Generator|
 |[PP-03](backlog/PP-03.md)|PPT 마무리 편집|PPT Generator|
@@ -74,6 +74,7 @@
 |[CH-06](done/CH-06.md)|캐릭터 이미지 생성 파트 신설|캐릭터 관리|
 |[CH-08](done/CH-08.md)|캐릭터 이미지 업로드|캐릭터 관리|
 |[MM-07](done/MM-07.md)|결과 저장 (이미지)|Manual Mode|
+|[GR-01](done/GR-01.md)|Grammar Studio 기획 (GR-02로 대체)|Grammar Studio|
 
 ## ⏸ 보류 (hold)
 
