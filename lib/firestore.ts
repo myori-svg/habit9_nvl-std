@@ -392,6 +392,21 @@ export async function stopAutoRun(
 
 // ── Prompt Templates ─────────────────────────────────────────────
 
+// 화면의 실시간 구독(subscribePromptTemplates)과 달리, 서버 라우트에서 한 번만
+// 읽을 때 쓴다.
+export async function fetchPromptTemplates(): Promise<
+  Partial<Record<PromptTemplateKey, string>>
+> {
+  const snap = await getDocs(collection(db, PROMPT_TEMPLATES));
+  const templates: Partial<Record<PromptTemplateKey, string>> = {};
+  for (const d of snap.docs) {
+    templates[d.id as PromptTemplateKey] = (
+      d.data() as { template: string }
+    ).template;
+  }
+  return templates;
+}
+
 export function subscribePromptTemplates(
   cb: (templates: Partial<Record<PromptTemplateKey, string>>) => void
 ): Unsubscribe {
