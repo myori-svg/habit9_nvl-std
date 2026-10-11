@@ -1,4 +1,4 @@
-// 이미지 생성 전용 OpenAI 클라이언트. 텍스트 생성은 lib/gemini.ts(Gemini)가 담당한다.
+// 이미지 생성 전용 OpenAI 클라이언트. 텍스트 생성은 lib/openai-text.ts가 담당한다.
 // 별도 SDK 없이 REST를 직접 호출한다.
 
 const OPENAI_IMAGES_URL = 'https://api.openai.com/v1/images';
@@ -23,7 +23,7 @@ function extensionOf(mime: string): string {
   return mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
 }
 
-async function readOpenAIError(res: Response): Promise<string> {
+export async function readOpenAIError(res: Response): Promise<string> {
   const body = await res.text();
   try {
     const message = JSON.parse(body)?.error?.message;

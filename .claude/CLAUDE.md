@@ -8,7 +8,7 @@ Manual Mode (현재 운영 중) → Auto Mode (보류) 순으로 개발.
 - **프레임워크**: Next.js (App Router)
 - **DB**: Firebase Firestore
 - **스토리지**: Firebase Storage
-- **AI**: Gemini API (텍스트 + 이미지 생성 모두 Gemini로 통일)
+- **AI**: OpenAI API (텍스트 + 이미지 생성 모두 OpenAI로 통일)
 - **상태관리**: Zustand (`lib/store.ts`)
 - **스타일**: Tailwind CSS
 
@@ -33,7 +33,8 @@ nvl-std/
 ├── lib/
 │   ├── firebase.ts       # Firebase 초기화
 │   ├── firestore.ts      # Firestore 헬퍼
-│   ├── gemini.ts         # Gemini API 호출
+│   ├── openai-text.ts    # OpenAI 텍스트 생성
+│   ├── openai-image.ts   # OpenAI 이미지 생성
 │   ├── prompts.ts        # 프롬프트 통합 관리 (MM-16)
 │   └── store.ts          # Zustand 스토어
 ├── types/
@@ -52,7 +53,7 @@ nvl-std/
 ### 작업 중
 - 프롬프트는 반드시 `lib/prompts.ts`에서 관리 (하드코딩 금지)
 - Zustand 상태는 컴포넌트 내에서 `useStore` 훅으로만 접근 (`useStore.getState()` 직접 호출 금지)
-- Gemini API 호출은 `lib/gemini.ts` 통해서
+- OpenAI API 호출은 `lib/openai-text.ts`(텍스트)·`lib/openai-image.ts`(이미지) 통해서
 
 ### 완료 후
 - 티켓 md의 완료 조건 체크
@@ -62,4 +63,4 @@ nvl-std/
 ## 주의사항
 - 선생님이 실사용 중 — 배포된 기능 건드릴 때 주의
 - Firebase 인증 없는 공유 DB 구조 (현재 단일 접근)
-- Gemini restriction 걸릴 수 있음 — 프롬프트 수정 유연하게 대응 가능하도록 설계
+- OpenAI moderation/거절 걸릴 수 있음 — 프롬프트 수정 유연하게 대응 가능하도록 설계

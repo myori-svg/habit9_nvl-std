@@ -1,9 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import {
-  generateContentWithRetry,
-  getGenAI,
-  PERMISSIVE_SAFETY_SETTINGS,
-} from '@/lib/gemini';
+import { hasOpenAIKey } from '@/lib/openai-image';
+import { generateText } from '@/lib/openai-text';
 import {
   buildCompositionPrompt,
   buildDQPrompt,
@@ -18,9 +15,9 @@ export async function POST(req: NextRequest) {
     dqTemplate,
     compositionTemplate,
   } = await req.json();
-  if (!process.env.GEMINI_API_KEY)
+  if (!hasOpenAIKey())
     return NextResponse.json(
-      { error: 'GEMINI_API_KEY not configured on server' },
+      { error: 'OPENAI_API_KEY not configured on server' },
       { status: 500 }
     );
   if (!partContent)
@@ -30,27 +27,17 @@ export async function POST(req: NextRequest) {
     );
 
   try {
-    const genAI = getGenAI();
-    const textModel = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-    });
-
     // ── Step 1: Discussion Questions ──────────────────────────────
     const dqPrompt = buildDQPrompt(
       novelTitle,
       partContent,
       dqTemplate ?? DEFAULT_PROMPT_TEMPLATES.dq
     );
-    const dqResult = await generateContentWithRetry(
-      textModel,
-      `${dqPrompt}
+    const dqResultText = await generateText(`${dqPrompt}
 
 Return ONLY a JSON array of question strings, no markdown fences:
-["Question 1", "Question 2"]`
-    );
-    const dqText = dqResult.response
-      .text()
+["Question 1", "Question 2"]`);
+    const dqText = dqResultText
       .trim()
       .replace(/```json|```/g, '')
       .trim();
@@ -64,14 +51,11 @@ Return ONLY a JSON array of question strings, no markdown fences:
         compositionTemplate ?? DEFAULT_PROMPT_TEMPLATES.composition,
         characterNames
       );
-      const compResult = await generateContentWithRetry(
-        textModel,
-        compositionPrompt
-      );
+      const compResultText = await generateText(compositionPrompt);
       discussionQuestions.push({
         id: crypto.randomUUID(),
         text: q,
-        compositionPrompt: compResult.response.text().trim(),
+        compositionPrompt: compResultText.trim(),
       });
     }
 
