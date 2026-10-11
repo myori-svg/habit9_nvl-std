@@ -8,6 +8,7 @@ import {
   getStyleRef,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
+import { useFileDrop } from '@/lib/useFileDrop';
 import type { Character, Novel } from '@/types';
 import { type AutoGenCharStatus, AutoGenStatusList, PromptBox } from './shared';
 
@@ -87,6 +88,18 @@ export default function CharImageStep({
     };
     reader.readAsDataURL(file);
   };
+
+  const refImageDrop = useFileDrop((files) => {
+    const file = files.find((f) => f.type.startsWith('image/'));
+    if (file) handleRefImageUpload(file);
+  });
+
+  const charImageDrop = useFileDrop((files) => {
+    const file = files.find((f) => f.type.startsWith('image/'));
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  });
 
   const generateImageForChar = async (char: Character, label: string) => {
     setCharStatus((prev) => ({
@@ -307,6 +320,9 @@ export default function CharImageStep({
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: internal tool */}
           <div
             onClick={() => refImageRef.current?.click()}
+            onDragOver={refImageDrop.onDragOver}
+            onDragLeave={refImageDrop.onDragLeave}
+            onDrop={refImageDrop.onDrop}
             style={{
               width: 90,
               height: 90,
@@ -317,6 +333,9 @@ export default function CharImageStep({
               cursor: 'pointer',
               flexShrink: 0,
               transition: 'border-color 0.2s',
+              borderColor: refImageDrop.isDragging
+                ? 'var(--gold)'
+                : 'var(--border)',
             }}
             onMouseEnter={(e) =>
               (e.currentTarget.style.borderColor = 'var(--gold)')
@@ -463,6 +482,9 @@ export default function CharImageStep({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: internal tool */}
       <div
         onClick={() => fileRef.current?.click()}
+        onDragOver={charImageDrop.onDragOver}
+        onDragLeave={charImageDrop.onDragLeave}
+        onDrop={charImageDrop.onDrop}
         style={{
           border: '2px dashed var(--border)',
           padding: '24px',
@@ -471,6 +493,9 @@ export default function CharImageStep({
           marginBottom: 12,
           background: 'white',
           transition: 'border-color 0.2s',
+          borderColor: charImageDrop.isDragging
+            ? 'var(--gold)'
+            : 'var(--border)',
         }}
         onMouseEnter={(e) =>
           (e.currentTarget.style.borderColor = 'var(--gold)')
