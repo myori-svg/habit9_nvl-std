@@ -19,7 +19,7 @@ interface ResponsesOutput {
 }
 
 // 참조 이미지(있으면)와 프롬프트로 자유 형식 텍스트를 받는다. JSON이 필요한
-// 곳은 프롬프트에서 직접 요청하고 호출부가 파싱한다(Gemini 쪽과 동일한 방식).
+// 곳은 프롬프트에서 직접 요청하고 호출부가 파싱한다.
 export async function generateText(
   prompt: string,
   referenceImages: TextReferenceImage[] = []

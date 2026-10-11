@@ -245,12 +245,12 @@ export default function CharPromptStep({
         className="input-field"
         value={charPromptInfo}
         onChange={(e) => setCharPromptInfo(e.target.value)}
-        placeholder="캐릭터 정보 (③에서 Gemini가 생성한 결과 붙여넣기)"
+        placeholder="캐릭터 정보 (③에서 ChatGPT가 생성한 결과 붙여넣기)"
         style={{ fontSize: 12, minHeight: 80, marginBottom: 12 }}
       />
       <PromptBox
         prompt={charPromptPrompt}
-        label="Gemini에 붙여넣을 프롬프트"
+        label="ChatGPT에 붙여넣을 프롬프트"
         templateKey="charPrompt"
         vars={{
           charPromptName: charPromptName || '(이름)',

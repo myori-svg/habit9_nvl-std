@@ -110,7 +110,7 @@ export default function ManualPanel({ novel }: Props) {
             opacity: 0.7,
           }}
         >
-          각 단계의 프롬프트를 복사해서 Gemini에 직접 붙여넣고, 결과를 다시
+          각 단계의 프롬프트를 복사해서 ChatGPT에 직접 붙여넣고, 결과를 다시
           저장할 수 있어요.
         </p>
       </div>

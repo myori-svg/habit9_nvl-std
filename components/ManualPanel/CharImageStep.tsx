@@ -499,7 +499,7 @@ export default function CharImageStep({
 
       <PromptBox
         prompt={charImagePrompt}
-        label="Gemini에 붙여넣을 프롬프트"
+        label="ChatGPT에 붙여넣을 프롬프트"
         templateKey="charImage"
         vars={{
           style,

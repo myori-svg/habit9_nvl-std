@@ -336,7 +336,7 @@ export function PromptBox({
                 margin: '0 0 28px',
               }}
             >
-              Gemini에 붙여넣고 결과를 받아오세요.
+              ChatGPT에 붙여넣고 결과를 받아오세요.
             </p>
             <button
               type="button"
@@ -434,14 +434,14 @@ export function SaveCompositionBox({
           lineHeight: 1.6,
         }}
       >
-        Gemini 결과 전체를 붙여넣으면 <code>===</code> 구분자 기준으로 자동
+        ChatGPT 결과 전체를 붙여넣으면 <code>===</code> 구분자 기준으로 자동
         분할해서 각 DQ에 저장합니다.
       </p>
       <textarea
         className="input-field"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder={`Gemini 결과 전체 붙여넣기\n(=== 구분선 포함)`}
+        placeholder={`ChatGPT 결과 전체 붙여넣기\n(=== 구분선 포함)`}
         style={{ fontSize: 12, minHeight: 120, marginBottom: 10 }}
       />
 
@@ -567,7 +567,7 @@ export function SaveCharInfoBox({ novel }: { novel: Novel }) {
         className="input-field"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Gemini에서 생성된 캐릭터 정보를 붙여넣기"
+        placeholder="ChatGPT에서 생성된 캐릭터 정보를 붙여넣기"
         style={{ fontSize: 12, minHeight: 80, marginBottom: 8 }}
       />
       <button
@@ -619,7 +619,7 @@ export function SaveCharPromptBox({
         className="input-field"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Gemini에서 생성된 캐릭터 프롬프트를 붙여넣기"
+        placeholder="ChatGPT에서 생성된 캐릭터 프롬프트를 붙여넣기"
         style={{ fontSize: 12, minHeight: 80, marginBottom: 8 }}
       />
       <button

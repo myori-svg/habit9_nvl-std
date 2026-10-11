@@ -186,7 +186,7 @@ export default function SceneStep({
 
       <PromptBox
         prompt={scenePrompt}
-        label="Gemini에 붙여넣을 최종 장면 생성 프롬프트"
+        label="ChatGPT에 붙여넣을 최종 장면 생성 프롬프트"
         templateKey="scene"
         vars={{
           style,
