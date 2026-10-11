@@ -15,6 +15,7 @@ import {
 } from '@/lib/grammar-job';
 import { shrinkImage } from '@/lib/image-shrink';
 import { useStore } from '@/lib/store';
+import { useFileDrop } from '@/lib/useFileDrop';
 import type { GrammarInputFile } from '@/types';
 
 const PDF_MIME = 'application/pdf';
@@ -130,9 +131,7 @@ export default function GrammarForm({
         : '';
   const canSubmit = files.length > 0 && !countProblem && !busy;
 
-  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []);
-    e.target.value = '';
+  const processPickedFiles = (picked: File[]) => {
     if (picked.length === 0) return;
     const merged = mergeSelectedFiles(files, picked);
     setEntries((prev) =>
@@ -146,6 +145,16 @@ export default function GrammarForm({
     );
     setError(merged.error ?? '');
   };
+
+  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    processPickedFiles(picked);
+  };
+
+  const filesDrop = useFileDrop((picked) => {
+    if (busy === '') processPickedFiles(picked);
+  });
 
   const handleSubmit = async () => {
     setError('');
@@ -204,9 +213,21 @@ export default function GrammarForm({
         gap: 20,
       }}
     >
-      <div>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag&drop zone, click-to-pick is on the label below */}
+      <div
+        onDragOver={filesDrop.onDragOver}
+        onDragLeave={filesDrop.onDragLeave}
+        onDrop={filesDrop.onDrop}
+        style={{
+          border: '2px dashed',
+          borderColor: filesDrop.isDragging ? 'var(--gold)' : 'transparent',
+          padding: 8,
+          transition: 'border-color 0.15s',
+        }}
+      >
         <div style={sectionLabelStyle}>
-          교재 자료 (사진 {GRAMMAR_MAX_IMAGES}장 이하 또는 PDF 1개)
+          교재 자료 (사진 {GRAMMAR_MAX_IMAGES}장 이하 또는 PDF 1개, 끌어다 놓기
+          가능)
         </div>
         <label
           className="btn-ghost"

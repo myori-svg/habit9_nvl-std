@@ -8,6 +8,7 @@ import {
   resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
+import { useFileDrop } from '@/lib/useFileDrop';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Character, Novel } from '@/types';
 import { StyleReferenceFields } from '../StyleReferencePanel';
@@ -55,6 +56,12 @@ export default function CharImageStep({
   const { saveCharImage, updateCharacter, promptTemplates } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState('');
+  const charImageDrop = useFileDrop((files) => {
+    const file = files.find((f) => f.type.startsWith('image/'));
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  });
 
   const [autoRunning, setAutoRunning] = useState(false);
   const [charStatus, setCharStatus] = useState<
@@ -341,6 +348,9 @@ export default function CharImageStep({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: internal tool */}
       <div
         onClick={() => fileRef.current?.click()}
+        onDragOver={charImageDrop.onDragOver}
+        onDragLeave={charImageDrop.onDragLeave}
+        onDrop={charImageDrop.onDrop}
         style={{
           border: '2px dashed var(--border)',
           padding: '24px',
@@ -349,6 +359,9 @@ export default function CharImageStep({
           marginBottom: 12,
           background: 'white',
           transition: 'border-color 0.2s',
+          borderColor: charImageDrop.isDragging
+            ? 'var(--gold)'
+            : 'var(--border)',
         }}
         onMouseEnter={(e) =>
           (e.currentTarget.style.borderColor = 'var(--gold)')

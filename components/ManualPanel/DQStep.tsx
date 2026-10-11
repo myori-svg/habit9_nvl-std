@@ -8,6 +8,7 @@ import {
   resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
+import { useFileDrop } from '@/lib/useFileDrop';
 import type { Novel, NovelPart } from '@/types';
 import { PromptBox, TemplateFallbackNotice } from './shared';
 
@@ -98,6 +99,10 @@ export default function DQStep({
     }
   };
 
+  const fileDrop = useFileDrop((files) => {
+    if (!uploading && files[0]) handleUpload(files[0]);
+  });
+
   const handleDeleteFile = async (group: ChapterFileGroup) => {
     const dqCount = group.parts.reduce(
       (sum, p) => sum + p.discussionQuestions.length,
@@ -132,7 +137,19 @@ export default function DQStep({
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag&drop zone, click-to-pick is on the button below */}
+      <div
+        onDragOver={fileDrop.onDragOver}
+        onDragLeave={fileDrop.onDragLeave}
+        onDrop={fileDrop.onDrop}
+        style={{
+          marginBottom: 16,
+          border: '2px dashed',
+          borderColor: fileDrop.isDragging ? 'var(--gold)' : 'transparent',
+          padding: 8,
+          transition: 'border-color 0.15s',
+        }}
+      >
         <input
           ref={fileRef}
           type="file"

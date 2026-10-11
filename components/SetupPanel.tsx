@@ -2,6 +2,7 @@
 import { AlertCircle, CheckCircle, Loader, Play, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
+import { useFileDrop } from '@/lib/useFileDrop';
 import type { Novel } from '@/types';
 
 interface Props {
@@ -47,9 +48,7 @@ export default function SetupPanel({ novel }: Props) {
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [error, setError] = useState('');
 
-  const handleStyleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processStyleImageFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
@@ -61,6 +60,16 @@ export default function SetupPanel({ novel }: Props) {
     };
     reader.readAsDataURL(file);
   };
+
+  const handleStyleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processStyleImageFile(file);
+  };
+
+  const styleImageDrop = useFileDrop((files) => {
+    const file = files.find((f) => f.type.startsWith('image/'));
+    if (file) processStyleImageFile(file);
+  });
 
   const handleRun = async () => {
     if (!summary.trim()) return;
@@ -197,6 +206,9 @@ export default function SetupPanel({ novel }: Props) {
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <label
                 htmlFor="style-image-input"
+                onDragOver={styleImageDrop.onDragOver}
+                onDragLeave={styleImageDrop.onDragLeave}
+                onDrop={styleImageDrop.onDrop}
                 style={{
                   width: 120,
                   height: 120,
@@ -208,6 +220,9 @@ export default function SetupPanel({ novel }: Props) {
                   cursor: 'pointer',
                   flexShrink: 0,
                   transition: 'border-color 0.2s',
+                  borderColor: styleImageDrop.isDragging
+                    ? 'var(--gold)'
+                    : 'var(--border)',
                   background: stylePreview ? 'none' : 'var(--cream)',
                   position: 'relative',
                   overflow: 'hidden',
@@ -243,7 +258,7 @@ export default function SetupPanel({ novel }: Props) {
                         textAlign: 'center',
                       }}
                     >
-                      Click to upload
+                      Click or drop to upload
                     </span>
                   </>
                 )}
