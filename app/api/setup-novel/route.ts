@@ -1,34 +1,19 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
-  generateContentWithRetry,
-  getGenAI,
-  PERMISSIVE_SAFETY_SETTINGS,
-} from '@/lib/gemini';
-import {
   generateImage,
   hasOpenAIKey,
   type ReferenceImage,
 } from '@/lib/openai-image';
+import { generateText } from '@/lib/openai-text';
 
 export async function POST(req: NextRequest) {
   const { title, summary, stylePrompt, styleRefImages } = await req.json();
   const refImages: ReferenceImage[] = styleRefImages ?? [];
-  if (!process.env.GEMINI_API_KEY)
-    return NextResponse.json(
-      { error: 'GEMINI_API_KEY not configured on server' },
-      { status: 500 }
-    );
   if (!hasOpenAIKey())
     return NextResponse.json(
       { error: 'OPENAI_API_KEY not configured on server' },
       { status: 500 }
     );
-
-  const genAI = getGenAI();
-  const textModel = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-  });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -44,9 +29,7 @@ export async function POST(req: NextRequest) {
           message: 'Generating discussion questions…',
         });
 
-        const dqResult = await generateContentWithRetry(
-          textModel,
-          `
+        const dqResultText = await generateText(`
 You are an expert literature teacher creating discussion questions for elementary students (grade 4).
 
 Novel: "${title}"
@@ -68,11 +51,9 @@ Return ONLY valid JSON, no markdown fences:
     }
   ]
 }
-`
-        );
+`);
 
-        const dqText = dqResult.response
-          .text()
+        const dqText = dqResultText
           .trim()
           .replace(/```json|```/g, '')
           .trim();
@@ -103,9 +84,7 @@ Return ONLY valid JSON, no markdown fences:
               total: totalDQs,
             });
 
-            const compResult = await generateContentWithRetry(
-              textModel,
-              `
+            const compResultText = await generateText(`
 You are an expert at creating visual scene composition prompts for storybook illustration.
 
 Novel: "${title}"
@@ -119,12 +98,11 @@ Create a detailed scene composition prompt describing:
 - Emotional tone of the scene
 
 Return ONLY the composition prompt text. No preamble. English only.
-`
-            );
+`);
             dqsWithComposition.push({
               id: crypto.randomUUID(),
               text: q,
-              compositionPrompt: compResult.response.text().trim(),
+              compositionPrompt: compResultText.trim(),
             });
           }
           partsWithComposition.push({
@@ -141,18 +119,14 @@ Return ONLY the composition prompt text. No preamble. English only.
           message: 'Extracting character list…',
         });
 
-        const charListResult = await generateContentWithRetry(
-          textModel,
-          `
+        const charListResultText = await generateText(`
 Novel: "${title}"
 Summary: ${summary}
 
 List all named characters. Return ONLY valid JSON, no markdown fences:
 {"characters": [{"name": "Character Name"}]}
-`
-        );
-        const charListText = charListResult.response
-          .text()
+`);
+        const charListText = charListResultText
           .trim()
           .replace(/```json|```/g, '')
           .trim();
@@ -176,18 +150,15 @@ List all named characters. Return ONLY valid JSON, no markdown fences:
             total: charListData.characters.length,
           });
 
-          const infoResult = await generateContentWithRetry(
-            textModel,
-            `
+          const infoText = await generateText(`
 Describe the character "${char.name}" from "${title}".
 Include: age, physical appearance (hair, eyes, build, clothing), personality traits, story role.
 When describing age, avoid stating an exact number (e.g. "13 years old") — use a vague phrase like "a young child" or "elementary-school age" instead, to reduce false-positive safety filter blocks on children's illustration content.
 Be specific. Under 150 words.
-`
-          );
+`);
           charsWithInfo.push({
             name: char.name,
-            info: infoResult.response.text().trim(),
+            info: infoText.trim(),
           });
         }
 
@@ -213,17 +184,8 @@ Be specific. Under 150 words.
             total: charsWithInfo.length,
           });
 
-          const promptParts: Array<
-            | { text: string }
-            | { inlineData: { data: string; mimeType: string } }
-          > = [];
-          for (const img of refImages) {
-            promptParts.push({
-              inlineData: { data: img.base64, mimeType: img.mime },
-            });
-          }
-          promptParts.push({
-            text: `Create a detailed image generation prompt for this character.
+          const promptText = await generateText(
+            `Create a detailed image generation prompt for this character.
 
 Character: ${char.name}
 Info: ${char.info}
@@ -236,15 +198,11 @@ ${refImages.length > 0 ? '- Match the style of the reference images provided' : 
 - If an exact age is mentioned (e.g. "13 years old"), rephrase it vaguely (e.g. "young", "a child") instead of stating the number — this reduces false-positive safety filter blocks on children's illustration content
 
 Return ONLY the prompt. English only.`,
-          });
-
-          const promptResult = await generateContentWithRetry(
-            textModel,
-            promptParts as never
+            refImages
           );
           charsWithPrompts.push({
             ...char,
-            textPrompt: promptResult.response.text().trim(),
+            textPrompt: promptText.trim(),
           });
         }
 
