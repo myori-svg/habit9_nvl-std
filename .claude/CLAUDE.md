@@ -63,3 +63,12 @@ nvl-std/
 - 선생님이 실사용 중 — 배포된 기능 건드릴 때 주의
 - Firebase 인증 없는 공유 DB 구조 (현재 단일 접근)
 - Gemini restriction 걸릴 수 있음 — 프롬프트 수정 유연하게 대응 가능하도록 설계
+
+## prod 브랜치 ↔ nvl-std-prod repo 연동
+- `prod` 브랜치는 별도 Vercel 프로젝트(이 repo의 dev와는 다른, Gemini 없이 OpenAI만 쓰는 운영 배포)의 기준 브랜치다.
+- `nvl-std-prod`(https://github.com/myori-svg/nvl-std-prod)는 그 `prod` 브랜치 내용만 담은 단일 브랜치(`main`) 미러 repo다 — 외부 포크를 이 repo로만 유도해서 dev 등 다른 브랜치가 노출되지 않게 하려는 목적.
+- **`prod` 브랜치에 새 커밋이 머지될 때마다(PR 머지 직후), 사용자가 다시 요청하지 않아도 바로 아래 명령으로 `nvl-std-prod`의 `main`에도 동일하게 반영한다:**
+  ```
+  git fetch origin prod && git push https://github.com/myori-svg/nvl-std-prod.git refs/remotes/origin/prod:refs/heads/main
+  ```
+- dev 브랜치는 이 동기화 대상이 아니다 — dev는 이 repo 자체(habit9_nvl-std)의 Production 배포(nvl-std-personal.vercel.app)로만 가고, nvl-std-prod와는 무관하다.
