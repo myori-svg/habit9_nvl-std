@@ -75,7 +75,7 @@ export default function CompositionStep({
       )}
       <PromptBox
         prompt={compositionPrompt}
-        label="Gemini에 붙여넣을 프롬프트"
+        label="ChatGPT에 붙여넣을 프롬프트"
         templateKey="composition"
         vars={{ questionItems, characterNote }}
       />

@@ -250,7 +250,7 @@ export default function DQStep({
       )}
       <PromptBox
         prompt={dqPrompt}
-        label="Gemini에 붙여넣을 프롬프트"
+        label="ChatGPT에 붙여넣을 프롬프트"
         templateKey="dq"
         vars={{ novelTitle: novel.title, selectedSummary }}
       />
@@ -283,14 +283,14 @@ export default function DQStep({
               lineHeight: 1.6,
             }}
           >
-            Gemini 결과를 붙여넣으면 선택한 챕터에 저장됩니다. 질문 간 구분자는{' '}
+            ChatGPT 결과를 붙여넣으면 선택한 챕터에 저장됩니다. 질문 간 구분자는{' '}
             <code>===</code>, 질문 내 파트 구분자는 <code>---</code>입니다.
           </p>
           <textarea
             className="input-field"
             value={dqResult}
             onChange={(e) => setDqResult(e.target.value)}
-            placeholder="Gemini 결과 붙여넣기"
+            placeholder="ChatGPT 결과 붙여넣기"
             style={{ fontSize: 12, minHeight: 100, marginBottom: 10 }}
           />
           <button

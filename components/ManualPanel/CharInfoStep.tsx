@@ -305,7 +305,7 @@ export default function CharInfoStep({
           </div>
           {charInfoPrompts.length === 1 && (
             <PromptBox
-              label="Gemini에 붙여넣을 프롬프트"
+              label="ChatGPT에 붙여넣을 프롬프트"
               prompt={charInfoPrompts[0].prompt}
               templateKey="charInfo"
               vars={{ novelTitle: novel.title, name: charInfoPrompts[0].name }}
@@ -313,7 +313,7 @@ export default function CharInfoStep({
           )}
           {charInfoPrompts.length > 1 && (
             <PromptBox
-              label="Gemini에 붙여넣을 프롬프트"
+              label="ChatGPT에 붙여넣을 프롬프트"
               prompt={charInfoPrompts
                 .map(({ name, prompt }) => `[${name}]\n${prompt}`)
                 .join('\n\n===\n\n')}
