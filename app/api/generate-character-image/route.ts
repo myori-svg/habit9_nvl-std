@@ -1,16 +1,16 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
-  generateContentWithRetry,
-  getGenAI,
-  PERMISSIVE_SAFETY_SETTINGS,
-} from '@/lib/gemini';
+  generateImage,
+  hasOpenAIKey,
+  type ReferenceImage,
+} from '@/lib/openai-image';
 
 export async function POST(req: NextRequest) {
   try {
     const { styleRefImages, stylePrompt, textPrompt } = await req.json();
-    if (!process.env.GEMINI_API_KEY)
+    if (!hasOpenAIKey())
       return NextResponse.json(
-        { error: 'GEMINI_API_KEY not configured on server' },
+        { error: 'OPENAI_API_KEY not configured on server' },
         { status: 500 }
       );
     if (!textPrompt)
@@ -19,39 +19,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
 
-    const genAI = getGenAI();
-    const imageModel = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-image',
-      safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-      generationConfig: {
-        // @ts-expect-error responseModalities/imageConfig not yet in SDK types
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { aspectRatio: '16:9' },
-      },
-    });
+    const refImages: ReferenceImage[] = styleRefImages ?? [];
 
-    const refImages: { base64: string; mime: string }[] = styleRefImages ?? [];
+    const prompt = `${stylePrompt ? `Style: ${stylePrompt}${refImages.length > 0 ? ' (match the style of the reference images provided)' : ''}\n\n` : ''}${textPrompt}`;
 
-    const parts: Array<
-      { text: string } | { inlineData: { data: string; mimeType: string } }
-    > = [];
-    for (const img of refImages) {
-      parts.push({ inlineData: { data: img.base64, mimeType: img.mime } });
-    }
-    parts.push({
-      text: `${stylePrompt ? `Style: ${stylePrompt}${refImages.length > 0 ? ' (match the style of the reference images provided)' : ''}\n\n` : ''}${textPrompt}`,
-    });
-
-    const result = await generateContentWithRetry(imageModel, parts as never);
-    for (const part of result.response.candidates?.[0]?.content?.parts ?? []) {
-      const p = part as { inlineData?: { data: string; mimeType: string } };
-      if (p.inlineData)
-        return NextResponse.json({
-          imageBase64: p.inlineData.data,
-          imageMime: p.inlineData.mimeType,
-        });
-    }
-    return NextResponse.json({ error: 'No image generated' }, { status: 500 });
+    return NextResponse.json(await generateImage(prompt, refImages));
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

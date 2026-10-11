@@ -4,13 +4,23 @@ import {
   getGenAI,
   PERMISSIVE_SAFETY_SETTINGS,
 } from '@/lib/gemini';
+import {
+  generateImage,
+  hasOpenAIKey,
+  type ReferenceImage,
+} from '@/lib/openai-image';
 
 export async function POST(req: NextRequest) {
   const { title, summary, stylePrompt, styleRefImages } = await req.json();
-  const refImages: { base64: string; mime: string }[] = styleRefImages ?? [];
+  const refImages: ReferenceImage[] = styleRefImages ?? [];
   if (!process.env.GEMINI_API_KEY)
     return NextResponse.json(
       { error: 'GEMINI_API_KEY not configured on server' },
+      { status: 500 }
+    );
+  if (!hasOpenAIKey())
+    return NextResponse.json(
+      { error: 'OPENAI_API_KEY not configured on server' },
       { status: 500 }
     );
 
@@ -246,16 +256,6 @@ Return ONLY the prompt. English only.`,
           total: charsWithPrompts.length,
         });
 
-        const imageModel = genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash-image',
-          safetySettings: PERMISSIVE_SAFETY_SETTINGS,
-          generationConfig: {
-            // @ts-expect-error responseModalities/imageConfig not yet in SDK types
-            responseModalities: ['TEXT', 'IMAGE'],
-            imageConfig: { aspectRatio: '16:9' },
-          },
-        });
-
         const finalCharacters = [];
         for (let ci = 0; ci < charsWithPrompts.length; ci++) {
           const char = charsWithPrompts[ci];
@@ -267,35 +267,10 @@ Return ONLY the prompt. English only.`,
           });
 
           try {
-            const imgParts: Array<
-              | { text: string }
-              | { inlineData: { data: string; mimeType: string } }
-            > = [];
-            for (const img of refImages) {
-              imgParts.push({
-                inlineData: { data: img.base64, mimeType: img.mime },
-              });
-            }
-            imgParts.push({ text: char.textPrompt });
-
-            const imgResult = await generateContentWithRetry(
-              imageModel,
-              imgParts as never
+            const { imageBase64, imageMime } = await generateImage(
+              char.textPrompt,
+              refImages
             );
-            let imageBase64 = '';
-            let imageMime = 'image/png';
-
-            for (const part of imgResult.response.candidates?.[0]?.content
-              ?.parts ?? []) {
-              const p = part as {
-                inlineData?: { data: string; mimeType: string };
-              };
-              if (p.inlineData) {
-                imageBase64 = p.inlineData.data;
-                imageMime = p.inlineData.mimeType;
-                break;
-              }
-            }
 
             finalCharacters.push({
               id: crypto.randomUUID(),
