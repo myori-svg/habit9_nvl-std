@@ -2,6 +2,7 @@
 import { ChevronRight, Palette, RefreshCw, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
+import { useFileDrop } from '@/lib/useFileDrop';
 import type { Novel } from '@/types';
 
 function readImageFile(file: File): Promise<{ base64: string; mime: string }> {
@@ -57,12 +58,14 @@ export function StyleReferenceFields({ novel }: { novel: Novel }) {
     setStylePromptInput(novel.stylePrompt || '');
   }, [novel.stylePrompt]);
 
-  const handleAddFiles = async (files: FileList | null) => {
-    for (const file of Array.from(files ?? [])) {
+  const handleAddFiles = async (files: File[]) => {
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
       const { base64, mime } = await readImageFile(file);
       addStyleRefImage(novel.id, base64, mime);
     }
   };
+  const addFilesDrop = useFileDrop(handleAddFiles);
 
   const handleReplaceFile = async (file: File | undefined) => {
     const imageId = replaceTargetId.current;
@@ -100,7 +103,7 @@ export function StyleReferenceFields({ novel }: { novel: Novel }) {
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          handleAddFiles(e.target.files);
+          handleAddFiles(Array.from(e.target.files ?? []));
           e.target.value = '';
         }}
       />
@@ -172,6 +175,9 @@ export function StyleReferenceFields({ novel }: { novel: Novel }) {
           type="button"
           aria-label="스타일 참고 이미지 추가"
           onClick={() => addInputRef.current?.click()}
+          onDragOver={addFilesDrop.onDragOver}
+          onDragLeave={addFilesDrop.onDragLeave}
+          onDrop={addFilesDrop.onDrop}
           style={{
             width: 90,
             height: 90,
@@ -183,6 +189,9 @@ export function StyleReferenceFields({ novel }: { novel: Novel }) {
             cursor: 'pointer',
             flexShrink: 0,
             transition: 'border-color 0.2s',
+            borderColor: addFilesDrop.isDragging
+              ? 'var(--gold)'
+              : 'var(--border)',
           }}
           onMouseEnter={(e) =>
             (e.currentTarget.style.borderColor = 'var(--gold)')
