@@ -407,15 +407,29 @@ export function resolvePromptTemplate(
 // ── Prompt builders ──────────────────────────────────────────────
 // templates 인자를 생략하면 기본 템플릿 사용. Step 컴포넌트에서는 스토어의 최신 커스텀 템플릿을 넘겨준다.
 
+// 같은 소설의 다른 챕터에서 이미 쓴 갈등 구조(제목+헤드라인)를 알려줘서, 같은
+// 선택 축("A에 머물지 B로 떠날지" 같은 구도)이 챕터마다 반복되지 않게 한다.
+// 템플릿은 사용자가 커스터마이즈할 수 있어 변수로 끼워 넣지 않고, 렌더링 뒤에 덧붙인다.
+function buildExistingQuestionsNote(existingQuestionSummaries: string[]): string {
+  if (existingQuestionSummaries.length === 0) return '';
+  const list = existingQuestionSummaries
+    .map((summary, i) => `${i + 1}. ${summary}`)
+    .join('\n');
+  return `\n\n이 소설에서 이미 사용한 질문들입니다:\n${list}\n각 제목에서 어떤 선택의 축을 쓰고 있는지(예: 머물지 떠날지, 의리냐 원칙이냐, 안전이냐 모험이냐) 먼저 파악하세요. 새 질문은 그 축을 그대로 따라가거나 표현만 바꿔 재사용하지 말고, 이 소설에서 아직 쓰지 않은 다른 종류의 갈등 축으로 만들어주세요.`;
+}
+
 export function buildDQPrompt(
   novelTitle: string,
   selectedSummary: string,
-  template: string = DEFAULT_PROMPT_TEMPLATES.dq
+  template: string = DEFAULT_PROMPT_TEMPLATES.dq,
+  existingQuestionSummaries: string[] = []
 ): string {
-  return renderTemplate(template, {
-    novelTitle,
-    selectedSummary: selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)',
-  });
+  return (
+    renderTemplate(template, {
+      novelTitle,
+      selectedSummary: selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)',
+    }) + buildExistingQuestionsNote(existingQuestionSummaries)
+  );
 }
 
 // 캐릭터 프롬프트(textPrompt)가 등록돼 있는 캐릭터만 골라 이름을 돌려준다.
