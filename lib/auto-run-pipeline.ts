@@ -6,6 +6,7 @@ import {
 import { generateQuestionDrafts } from '@/lib/dq-generation';
 import {
   failAutoRun,
+  fetchNovel,
   fetchPart,
   finishAutoRun,
   saveGeneratedQuestions,
@@ -13,6 +14,7 @@ import {
   saveSceneImageError,
 } from '@/lib/firestore';
 import type { ReferenceImage } from '@/lib/openai-image';
+import { extractQuestionSummary } from '@/lib/output-format';
 import {
   getPromptedCharacterNames,
   pickMentionedCharacters,
@@ -73,6 +75,14 @@ async function prepareQuestions(
     if (!part) throw new Error('챕터를 찾지 못했어요');
     return part.discussionQuestions;
   }
+  const novel = await fetchNovel(input.novelId);
+  // 같은 소설의 다른 챕터에서 이미 쓴 질문만 모은다 — 지금 다시 만드는 챕터 자신의
+  // 기존 질문은 곧 교체될 것이므로 제외한다.
+  const existingQuestionSummaries =
+    novel?.parts
+      .filter((p) => p.id !== input.partId)
+      .flatMap((p) => p.discussionQuestions)
+      .map((dq) => extractQuestionSummary(dq.text)) ?? [];
   const drafts = await generateQuestionDrafts({
     novelTitle: input.novelTitle,
     partContent: input.partContent,
@@ -80,6 +90,7 @@ async function prepareQuestions(
     promptedCharacterNames: getPromptedCharacterNames(input.characters),
     dqTemplate: input.dqTemplate,
     compositionTemplate: input.compositionTemplate,
+    existingQuestionSummaries,
   });
   return saveGeneratedQuestions(
     input.novelId,

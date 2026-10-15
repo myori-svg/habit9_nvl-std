@@ -240,6 +240,12 @@ function withoutOptionLabel(text: string, option: 'A' | 'B'): string {
   return text.replace(new RegExp(`^Option\\s*${option}\\s*:\\s*`, 'i'), '');
 }
 
+// 저장된 질문 텍스트의 첫 줄("[제목] 헤드라인")만 뽑아낸다. 같은 소설에서 이미
+// 나온 갈등 구조를 다음 질문 생성 프롬프트에 압축해서 알려줄 때 쓴다.
+export function extractQuestionSummary(questionText: string): string {
+  return questionText.split('\n')[0];
+}
+
 // Manual Mode 결과와 같은 모양: "[제목] 헤드라인 / 본문 / --- / Option A / --- / Option B"
 export function assembleQuestionText(question: QuestionItem): string {
   return [

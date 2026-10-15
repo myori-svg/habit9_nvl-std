@@ -44,6 +44,11 @@ export async function fetchNovels(): Promise<Novel[]> {
   return snap.docs.map((d) => d.data() as Novel);
 }
 
+export async function fetchNovel(novelId: string): Promise<Novel | null> {
+  const snap = await getDoc(doc(db, NOVELS, novelId));
+  return snap.exists() ? (snap.data() as Novel) : null;
+}
+
 export function subscribeNovels(cb: (novels: Novel[]) => void): Unsubscribe {
   return onSnapshot(
     query(collection(db, NOVELS), orderBy('createdAt', 'desc')),

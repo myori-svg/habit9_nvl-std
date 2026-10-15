@@ -32,6 +32,9 @@ export interface QuestionGenerationInput {
   promptedCharacterNames: string[];
   dqTemplate?: string;
   compositionTemplate?: string;
+  // 같은 소설의 다른 챕터에서 이미 만든 질문의 "[제목] 헤드라인" 목록. 갈등 구조
+  // 중복을 피하도록 DQ 프롬프트에 그대로 전달된다.
+  existingQuestionSummaries?: string[];
 }
 
 // 챕터 원문으로 질문(DQ)을 만들고, 질문마다 구도 프롬프트를 이어서 만든다.
@@ -43,6 +46,7 @@ export async function generateQuestionDrafts({
   promptedCharacterNames,
   dqTemplate,
   compositionTemplate,
+  existingQuestionSummaries = [],
 }: QuestionGenerationInput): Promise<QuestionDraft[]> {
   const ai = getGenAI();
   const config = { safetySettings: PERMISSIVE_SAFETY_SETTINGS };
@@ -53,7 +57,8 @@ export async function generateQuestionDrafts({
     contents: buildDQPrompt(
       novelTitle,
       partContent,
-      resolvePromptTemplate('dq', dqTemplate).template
+      resolvePromptTemplate('dq', dqTemplate).template,
+      existingQuestionSummaries
     ),
     config: {
       ...config,
