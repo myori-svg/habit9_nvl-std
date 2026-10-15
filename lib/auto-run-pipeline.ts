@@ -13,8 +13,8 @@ import {
   saveSceneImage,
   saveSceneImageError,
 } from '@/lib/firestore';
-import { extractQuestionSummary } from '@/lib/output-format';
 import type { ReferenceImage } from '@/lib/openai-image';
+import { extractQuestionSummary } from '@/lib/output-format';
 import {
   getPromptedCharacterNames,
   pickMentionedCharacters,

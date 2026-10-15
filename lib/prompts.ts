@@ -410,7 +410,9 @@ export function resolvePromptTemplate(
 // 같은 소설의 다른 챕터에서 이미 쓴 갈등 구조(제목+헤드라인)를 알려줘서, 같은
 // 선택 축("A에 머물지 B로 떠날지" 같은 구도)이 챕터마다 반복되지 않게 한다.
 // 템플릿은 사용자가 커스터마이즈할 수 있어 변수로 끼워 넣지 않고, 렌더링 뒤에 덧붙인다.
-function buildExistingQuestionsNote(existingQuestionSummaries: string[]): string {
+function buildExistingQuestionsNote(
+  existingQuestionSummaries: string[]
+): string {
   if (existingQuestionSummaries.length === 0) return '';
   const list = existingQuestionSummaries
     .map((summary, i) => `${i + 1}. ${summary}`)
@@ -427,7 +429,8 @@ export function buildDQPrompt(
   return (
     renderTemplate(template, {
       novelTitle,
-      selectedSummary: selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)',
+      selectedSummary:
+        selectedSummary || '(챕터를 선택하거나 직접 입력해주세요)',
     }) + buildExistingQuestionsNote(existingQuestionSummaries)
   );
 }
