@@ -10,6 +10,7 @@ import {
   hasOpenAIKey,
   type ReferenceImage,
 } from '@/lib/openai-image';
+import { buildCharacterImagePrompt, getStyleRef } from '@/lib/prompts';
 
 export async function POST(req: NextRequest) {
   const { title, summary, stylePrompt, styleRefImages } = await req.json();
@@ -200,9 +201,7 @@ Be specific. Under 150 words.
           total: charsWithInfo.length,
         });
 
-        const styleRef =
-          stylePrompt ||
-          `cozy heartwarming watercolor and colored pencil storybook illustration style, soft hand-drawn outlines, visible pencil strokes, warm golden light, muted pastels and earthy browns, framed by a decorative vine border`;
+        const styleRef = getStyleRef(stylePrompt);
 
         const charsWithPrompts = [];
         for (let ci = 0; ci < charsWithInfo.length; ci++) {
@@ -270,7 +269,11 @@ Return ONLY the prompt. English only.`,
 
           try {
             const { imageBase64, imageMime } = await generateImage(
-              char.textPrompt,
+              buildCharacterImagePrompt(
+                stylePrompt,
+                char.textPrompt,
+                refImages.length > 0
+              ),
               refImages
             );
 
