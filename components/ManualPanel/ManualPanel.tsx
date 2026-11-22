@@ -6,9 +6,15 @@ import CompositionStep from './CompositionStep';
 import DQStep from './DQStep';
 import SceneStep from './SceneStep';
 
-type ActiveStep = 'dq' | 'composition' | 'char-info' | 'scene';
+type ActiveStep = 'char-info' | 'dq' | 'composition' | 'scene';
 
+// 캐릭터를 먼저 등록해 두면 구도 프롬프트가 등록된 캐릭터로만 만들어지는 순서다.
 const STEPS = [
+  {
+    id: 'char-info',
+    label: '⓪ 캐릭터 관리',
+    desc: '캐릭터 추출 / 정보 수집 / 프롬프트 작성 / 이미지 업로드',
+  },
   { id: 'dq', label: '① DQ 생성', desc: 'Discussion Question 생성 프롬프트' },
   {
     id: 'composition',
@@ -16,13 +22,8 @@ const STEPS = [
     desc: '장면 구도 생성 프롬프트',
   },
   {
-    id: 'char-info',
-    label: '③ 캐릭터 관리',
-    desc: '캐릭터 추출 / 정보 수집 / 프롬프트 작성 / 이미지 업로드',
-  },
-  {
     id: 'scene',
-    label: '④ 장면 생성',
+    label: '③ 장면 생성',
     desc: '최종 장면 이미지 생성 프롬프트 조립',
   },
 ] as const;
@@ -32,7 +33,7 @@ interface Props {
 }
 
 export default function ManualPanel({ novel }: Props) {
-  const [activeStep, setActiveStep] = useState<ActiveStep>('dq');
+  const [activeStep, setActiveStep] = useState<ActiveStep>(STEPS[0].id);
 
   // Step 1
   const [dqChapters, setDqChapters] = useState<string[]>([]);
@@ -42,7 +43,7 @@ export default function ManualPanel({ novel }: Props) {
   const [compPartId, setCompPartId] = useState(novel.parts[0]?.id ?? '');
   const [compCustomDQ, setCompCustomDQ] = useState('');
 
-  // Step 3
+  // Step 0
   const [charSubStep, setCharSubStep] = useState<
     'extract' | 'info' | 'prompt' | 'image'
   >('extract');
@@ -63,7 +64,7 @@ export default function ManualPanel({ novel }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadDone, setUploadDone] = useState(false);
 
-  // Step 4
+  // Step 3
   const [scenePartId, setScenePartId] = useState(novel.parts[0]?.id ?? '');
   const [sceneDQId, setSceneDQId] = useState('');
   const [sceneComposition, setSceneComposition] = useState('');
@@ -71,7 +72,7 @@ export default function ManualPanel({ novel }: Props) {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally resets only on novel switch
   useEffect(() => {
-    setActiveStep('dq');
+    setActiveStep(STEPS[0].id);
     setDqChapters([]);
     setDqCustomSummary('');
     setCompPartId(novel.parts[0]?.id ?? '');

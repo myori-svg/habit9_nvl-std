@@ -1,16 +1,30 @@
 'use client';
-import { Check, Sparkles, Square, Upload, X } from 'lucide-react';
+import { Check, Sparkles, Square } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { downloadBase64File } from '@/lib/download';
 import {
   buildCharImagePrompt,
-  DEFAULT_PROMPT_TEMPLATES,
   getStyleRef,
+  resolvePromptTemplate,
 } from '@/lib/prompts';
 import { useStore } from '@/lib/store';
 import { useFileDrop } from '@/lib/useFileDrop';
+import { withTimeout } from '@/lib/withTimeout';
 import type { Character, Novel } from '@/types';
-import { type AutoGenCharStatus, AutoGenStatusList, PromptBox } from './shared';
+import { StyleReferenceFields } from '../StyleReferencePanel';
+
+// 실제 이미지(저장된 주소 또는 이번 세션에서 만든 것)가 있는지. 예전에 저장 없이 남은
+// imageGenerated 표시는 신뢰하지 않는다.
+const hasCharImage = (c: Character) => Boolean(c.imageUrl || c.imageBase64);
+
+import {
+  type AutoGenCharStatus,
+  AutoGenStatusList,
+  PromptBox,
+  TemplateFallbackNotice,
+} from './shared';
+
+const SAVE_TIMEOUT_MS = 45000;
 
 interface Props {
   novel: Novel;
@@ -39,20 +53,15 @@ export default function CharImageStep({
   uploadDone,
   setUploadDone,
 }: Props) {
-  const {
-    saveCharImage,
-    updateCharacter,
-    updateNovel,
-    addStyleRefImage,
-    removeStyleRefImage,
-    promptTemplates,
-  } = useStore();
+  const { saveCharImage, updateCharacter, promptTemplates } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
-  const refImageRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState('');
-  const [stylePromptInput, setStylePromptInput] = useState(
-    novel.stylePrompt || ''
-  );
+  const charImageDrop = useFileDrop((files) => {
+    const file = files.find((f) => f.type.startsWith('image/'));
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  });
 
   const [autoRunning, setAutoRunning] = useState(false);
   const [charStatus, setCharStatus] = useState<
@@ -68,7 +77,7 @@ export default function CharImageStep({
       let changed = false;
       for (const c of novel.characters) {
         if (!(c.id in next)) {
-          next[c.id] = !c.imageGenerated;
+          next[c.id] = !hasCharImage(c);
           changed = true;
         }
       }
@@ -77,29 +86,6 @@ export default function CharImageStep({
   }, [novel.characters]);
 
   const selectedChars = novel.characters.filter((c) => selected[c.id]);
-
-  const handleRefImageUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const [header, base64] = result.split(',');
-      const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
-      addStyleRefImage(novel.id, base64, mime);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const refImageDrop = useFileDrop((files) => {
-    const file = files.find((f) => f.type.startsWith('image/'));
-    if (file) handleRefImageUpload(file);
-  });
-
-  const charImageDrop = useFileDrop((files) => {
-    const file = files.find((f) => f.type.startsWith('image/'));
-    if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-  });
 
   const generateImageForChar = async (char: Character, label: string) => {
     setCharStatus((prev) => ({
@@ -120,11 +106,16 @@ export default function CharImageStep({
       if (data.error) throw new Error(data.error);
 
       downloadBase64File(data.imageBase64, data.imageMime, char.name);
-      await updateCharacter(novel.id, char.id, {
-        imageBase64: data.imageBase64,
-        imageMime: data.imageMime,
-        imageGenerated: true,
-      });
+      // Firebase Storage에 업로드해서 imageUrl로 영구 저장 (updateCharacter만
+      // 쓰면 base64는 Firestore 저장 시 걸러지고 imageGenerated 플래그만 남아,
+      // 새로고침하면 이미지가 사라지는 문제가 있었음). 업로드가 무한 재시도에
+      // 빠지는 경우가 있어 타임아웃을 걸어둔다.
+      await withTimeout(
+        saveCharImage(novel.id, char.id, data.imageBase64, data.imageMime),
+        SAVE_TIMEOUT_MS,
+        '이미지 저장'
+      );
+      await updateCharacter(novel.id, char.id, { imageGenerated: true });
       setCharStatus((prev) => ({
         ...prev,
         [char.id]: { state: 'done', message: '생성 완료!' },
@@ -169,11 +160,15 @@ export default function CharImageStep({
   const style = getStyleRef(novel.stylePrompt);
   const charImageTextPrompt =
     novel.characters.find((c) => c.name === charImageName)?.textPrompt ?? '';
+  const charImageTemplate = resolvePromptTemplate(
+    'charImage',
+    promptTemplates.charImage
+  );
   const charImagePrompt = buildCharImagePrompt(
     style,
     charImageName,
     charImageTextPrompt,
-    promptTemplates.charImage ?? DEFAULT_PROMPT_TEMPLATES.charImage
+    charImageTemplate.template
   );
 
   const handleImageUpload = () => {
@@ -217,136 +212,7 @@ export default function CharImageStep({
           background: 'var(--cream)',
         }}
       >
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--ink-soft)',
-            marginBottom: 6,
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-          }}
-        >
-          스타일 프롬프트 (텍스트, ref 이미지와 함께 전달됨)
-        </div>
-        <textarea
-          className="input-field"
-          value={stylePromptInput}
-          onChange={(e) => setStylePromptInput(e.target.value)}
-          onBlur={() => {
-            if (stylePromptInput !== (novel.stylePrompt || '')) {
-              updateNovel(novel.id, { stylePrompt: stylePromptInput });
-            }
-          }}
-          placeholder="e.g. cozy watercolor storybook illustration, soft pastel colors, hand-drawn outlines…"
-          style={{ fontSize: 12, minHeight: 56, marginBottom: 14 }}
-        />
-
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--ink-soft)',
-            marginBottom: 10,
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-          }}
-        >
-          스타일 참고 이미지 (여러 장 추가 가능 — 자동 생성 품질에 영향)
-        </div>
-        <input
-          ref={refImageRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleRefImageUpload(file);
-            e.target.value = '';
-          }}
-        />
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
-          }}
-        >
-          {(novel.styleRefImages ?? []).map((img, i) => (
-            <div
-              key={img.id}
-              style={{
-                position: 'relative',
-                width: 90,
-                height: 90,
-                border: '1px solid var(--border)',
-                background: 'white',
-                flexShrink: 0,
-              }}
-            >
-              {/* biome-ignore lint/performance/noImgElement: preview only */}
-              <img
-                src={`data:${img.mime};base64,${img.base64}`}
-                alt={`style ref ${i + 1}`}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => removeStyleRefImage(novel.id, img.id)}
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: 2,
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  background: 'rgba(26,20,16,0.7)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                }}
-              >
-                <X size={11} color="white" />
-              </button>
-            </div>
-          ))}
-
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: internal tool */}
-          {/* biome-ignore lint/a11y/useKeyWithClickEvents: internal tool */}
-          <div
-            onClick={() => refImageRef.current?.click()}
-            onDragOver={refImageDrop.onDragOver}
-            onDragLeave={refImageDrop.onDragLeave}
-            onDrop={refImageDrop.onDrop}
-            style={{
-              width: 90,
-              height: 90,
-              border: '2px dashed var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-              transition: 'border-color 0.2s',
-              borderColor: refImageDrop.isDragging
-                ? 'var(--gold)'
-                : 'var(--border)',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.borderColor = 'var(--gold)')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.borderColor = 'var(--border)')
-            }
-          >
-            <Upload size={16} style={{ color: 'var(--ink-soft)' }} />
-          </div>
-        </div>
+        <StyleReferenceFields novel={novel} />
       </div>
 
       {novel.characters.length > 0 && (
@@ -414,7 +280,7 @@ export default function CharImageStep({
               novel.characters.map((c) => [
                 c.id,
                 charStatus[c.id] ??
-                  (c.imageGenerated
+                  (hasCharImage(c)
                     ? { state: 'done', message: '생성 완료!' }
                     : { state: 'pending' }),
               ])
@@ -448,7 +314,7 @@ export default function CharImageStep({
         >
           {novel.characters.map((c) => (
             <option key={c.id} value={c.name}>
-              {c.name} {c.imageGenerated || c.imageUrl ? '✓' : ''}
+              {c.name} {hasCharImage(c) ? '✓' : ''}
             </option>
           ))}
         </select>
@@ -461,7 +327,7 @@ export default function CharImageStep({
             marginBottom: 16,
           }}
         >
-          ③-0에서 먼저 캐릭터를 추출해주세요
+          ⓪-0에서 먼저 캐릭터를 추출해주세요
         </p>
       )}
 
@@ -522,17 +388,14 @@ export default function CharImageStep({
         )}
       </div>
 
+      <TemplateFallbackNotice
+        templateName="캐릭터 이미지"
+        missing={charImageTemplate.missing}
+      />
       <PromptBox
         prompt={charImagePrompt}
         label="ChatGPT에 붙여넣을 프롬프트"
         templateKey="charImage"
-        vars={{
-          style,
-          charImageName: charImageName || '(이름)',
-          charImageTextPrompt:
-            charImageTextPrompt ||
-            '(④ 단계에서 텍스트 프롬프트를 먼저 생성해주세요)',
-        }}
       />
 
       {uploadError && (
@@ -570,7 +433,7 @@ export default function CharImageStep({
         ) : uploading ? (
           '업로드 중…'
         ) : (
-          'Firebase에 저장'
+          '이미지 저장'
         )}
       </button>
     </div>

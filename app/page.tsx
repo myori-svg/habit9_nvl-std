@@ -1,6 +1,7 @@
 'use client';
-import { Settings } from 'lucide-react';
+import { Menu, Settings } from 'lucide-react';
 import { useState } from 'react';
+import GrammarPanel from '@/components/GrammarPanel/GrammarPanel';
 import HistoryPanel from '@/components/HistoryPanel';
 import ManualPanel from '@/components/ManualPanel/ManualPanel';
 import SettingsModal from '@/components/SettingsModal';
@@ -9,25 +10,39 @@ import Sidebar from '@/components/Sidebar';
 import WorkPanel from '@/components/WorkPanel';
 import { useStore } from '@/lib/store';
 
-type Tab = 'work' | 'manual' | 'history';
+type Tab = 'work' | 'manual' | 'history' | 'grammar';
 
 export default function Home() {
   const { activeNovelId, novels } = useStore();
   const [tab, setTab] = useState<Tab>('manual');
   const [showSettings, setShowSettings] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const novel = novels.find((n) => n.id === activeNovelId);
   const isSetup = false;
 
-  const TABS: { id: Tab; label: string }[] = [
+  // Grammar는 소설과 무관하므로 소설을 고르지 않아도 항상 쓸 수 있다.
+  const NOVEL_TABS: { id: Tab; label: string }[] = [
     { id: 'manual', label: 'Manual Mode' },
     { id: 'work', label: 'Auto Mode' },
     { id: 'history', label: 'Archive' },
   ];
+  const GRAMMAR_TAB: { id: Tab; label: string } = {
+    id: 'grammar',
+    label: 'Grammar',
+  };
+  const TABS = novel ? [...NOVEL_TABS, GRAMMAR_TAB] : [GRAMMAR_TAB];
+  const activeTab: Tab = TABS.some((t) => t.id === tab) ? tab : 'grammar';
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar />
+      <Sidebar open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+      <button
+        type="button"
+        className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-label="사이드바 닫기"
+      />
 
       <div
         style={{
@@ -49,9 +64,25 @@ export default function Home() {
             flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex' }}>
-            {novel &&
-              !isSetup &&
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="mobile-menu-btn"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="사이드바 열기"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--ink-soft)',
+                padding: '6px 10px 6px 0',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Menu size={18} />
+            </button>
+            {!isSetup &&
               TABS.map((t) => (
                 <button
                   type="button"
@@ -67,9 +98,10 @@ export default function Home() {
                     fontWeight: 500,
                     letterSpacing: '0.07em',
                     textTransform: 'uppercase',
-                    color: tab === t.id ? 'var(--ink)' : 'var(--ink-soft)',
+                    color:
+                      activeTab === t.id ? 'var(--ink)' : 'var(--ink-soft)',
                     borderBottom:
-                      tab === t.id
+                      activeTab === t.id
                         ? '2px solid var(--gold)'
                         : '2px solid transparent',
                     transition: 'all 0.2s',
@@ -107,13 +139,15 @@ export default function Home() {
         </header>
 
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
-          {!novel ? (
+          {activeTab === 'grammar' ? (
+            <GrammarPanel />
+          ) : !novel ? (
             <EmptyState />
           ) : isSetup ? (
             <SetupPanel novel={novel} />
-          ) : tab === 'work' ? (
+          ) : activeTab === 'work' ? (
             <WorkPanel novel={novel} />
-          ) : tab === 'manual' ? (
+          ) : activeTab === 'manual' ? (
             <ManualPanel novel={novel} />
           ) : (
             <HistoryPanel />

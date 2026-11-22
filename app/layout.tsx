@@ -1,10 +1,15 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import FirebaseSyncProvider from '@/components/FirebaseSyncProvider';
 
 export const metadata: Metadata = {
   title: 'Novel Studio',
   description: 'AI-powered novel discussion & scene generator',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({

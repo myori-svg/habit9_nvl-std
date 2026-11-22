@@ -31,15 +31,53 @@ export interface NovelPart {
   id: string;
   label: string;
   content: string; // 챕터 원문 (파일 업로드 파싱 결과)
+  sourceFileId?: string; // 같은 업로드에서 나온 챕터끼리 공유. 파일 단위 삭제의 묶음 기준
+  sourceFileName?: string;
   discussionQuestions: DiscussionQuestion[];
+  autoRun?: AutoRun; // 서버 백그라운드 자동 생성의 가장 최근 실행 기록
+}
+
+export type AutoRunStatus = 'running' | 'stopped' | 'error' | 'done';
+
+// full: 질문·구도 프롬프트를 새로 만든 뒤 모든 장면 이미지를 만든다.
+// images-only: 저장된 질문은 그대로 두고 이미지가 없는 장면만 만든다.
+export type AutoRunMode = 'full' | 'images-only';
+
+// questions: 질문·구도 프롬프트 생성 중, images: 장면 이미지 생성 중
+export type AutoRunStage = 'questions' | 'images';
+
+export interface AutoRun {
+  id: string; // 실행마다 새로 발급 — 중지·교체된 실행의 뒤늦은 작업을 걸러내는 표식
+  status: AutoRunStatus;
+  stage: AutoRunStage;
+  startedAt: string;
+  updatedAt: string; // 서버가 마지막으로 진행을 기록한 시각
+  error?: string;
+}
+
+export type SceneSlot = 'main' | 'optionA' | 'optionB';
+
+export interface SceneImage {
+  base64?: string; // in-memory only
+  mime?: string;
+  url?: string; // Vercel Blob URL (persistent)
+  error?: string; // 서버 백그라운드 생성 실패 시 메시지 (새로고침 후에도 보이도록)
+  // 이 결과를 만든 개별 재생성 요청의 ID. 화면이 이전 결과와 이번 요청의 결과를 구분한다.
+  requestId?: string;
 }
 
 export interface DiscussionQuestion {
   id: string;
   text: string;
   compositionPrompt: string;
+  // 구도 프롬프트의 3분할(본문/Option A/Option B) 구조를 그대로 따라가는
+  // 장면 이미지 슬롯. Auto Mode 파이프라인이 채움.
+  sceneImages?: Partial<Record<SceneSlot, SceneImage>>;
+  /** @deprecated sceneImages.main으로 대체됨. 기존에 저장된 문서 호환용으로만 남김. */
   sceneImage?: string; // in-memory only
+  /** @deprecated sceneImages.main으로 대체됨. */
   sceneMime?: string;
+  /** @deprecated sceneImages.main으로 대체됨. */
   sceneImageUrl?: string; // Firebase Storage URL (persistent)
 }
 
@@ -71,4 +109,63 @@ export interface HistoryEntry {
   imageMime?: string;
   prompt: string;
   createdAt: string;
+}
+
+// ── Grammar 퀴즈 ──────────────────────────────────────────────────
+
+export type GrammarQuestionType = 'multiple-choice' | 'short-answer';
+
+export interface GrammarQuestion {
+  number: number;
+  type: GrammarQuestionType;
+  question: string; // 번호·보기 없이 문제 문장만
+  choices: string[]; // 객관식의 보기 문장(A. B. 표기 없이). 서술형은 빈 배열
+  answer: string; // 객관식은 보기 글자(예: "B"), 서술형은 모범 답안만
+  explanation: string;
+}
+
+export interface GrammarAnalysis {
+  unitTitle: string;
+  grammarScope: string;
+  keyContrasts: string[];
+  commonMistakes: string[];
+}
+
+export interface GrammarResult {
+  analysis: GrammarAnalysis;
+  questions: GrammarQuestion[];
+  generatedAt: string;
+}
+
+// path는 비공개 보관함 안의 경로
+export interface GrammarInputFile {
+  path: string;
+  name: string;
+  mime: string;
+}
+
+export interface GrammarJobInput {
+  files: GrammarInputFile[];
+  multipleChoiceCount: number;
+  shortAnswerCount: number;
+  extraRequest: string;
+}
+
+export type GrammarRunStatus = 'running' | 'stopped' | 'error' | 'done';
+
+export interface GrammarRun {
+  id: string; // 실행마다 새로 발급 — 중지·교체된 실행의 뒤늦은 결과를 걸러내는 표식
+  status: GrammarRunStatus;
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
+export interface GrammarJob {
+  id: string;
+  createdAt: string;
+  input: GrammarJobInput;
+  run: GrammarRun;
+  // 가장 최근에 성공한 결과. 다시 생성하는 중이거나 실패해도 지우지 않는다.
+  result?: GrammarResult;
 }

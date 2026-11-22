@@ -1,242 +1,553 @@
 'use client';
+import { Download, RefreshCw, Sparkles, Square } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
-  Check,
-  Download,
-  Image,
-  RefreshCw,
-  Sparkles,
-  User,
-} from 'lucide-react';
-import { useState } from 'react';
+  buildSceneWorkItems,
+  isAutoRunInProgress,
+  isAutoRunStalled,
+} from '@/lib/auto-run';
+import { splitCompositionScenes } from '@/lib/output-format';
+import { pickMentionedCharacters, resolvePromptTemplate } from '@/lib/prompts';
+import type { SceneCharacterInput } from '@/lib/scene-generation';
 import { useStore } from '@/lib/store';
-import type { Character, Novel } from '@/types';
+import type {
+  AutoRun,
+  AutoRunMode,
+  Character,
+  DiscussionQuestion,
+  Novel,
+  NovelPart,
+  SceneImage,
+  SceneSlot,
+} from '@/types';
+import {
+  type AutoGenCharStatus,
+  AutoGenStatusList,
+  TemplateFallbackNotice,
+} from './ManualPanel/shared';
+import { StyleReferenceCallout } from './StyleReferencePanel';
 
 interface Props {
   novel: Novel;
 }
 
+const DQ_ROW_ID = 'dq-generation';
+
+// 서버가 진행 중이거나 끊겼는지 다시 판단하는 주기.
+const NOW_TICK_MS = 15 * 1000;
+
+// 개별 재생성 결과가 이 시간 안에 오지 않으면 서버가 끊긴 것으로 본다.
+// app/api/generate-scene/route.ts의 maxDuration(300초)보다 길어야 한다.
+const SCENE_REGEN_STALE_AFTER_MS = 6 * 60 * 1000;
+
+interface PendingRegen {
+  requestId: string;
+  startedAt: number;
+}
+
+const SLOT_LABELS: Record<SceneSlot, string> = {
+  main: '본문',
+  optionA: 'Option A',
+  optionB: 'Option B',
+};
+
+function slotKey(dqId: string, slot: SceneSlot): string {
+  return `${dqId}:${slot}`;
+}
+
+// 저장된 이미지 주소가 있으면 주소만 보내고(서버가 직접 내려받음), 아직 저장
+// 전인 이미지는 base64로 보낸다.
+function toSceneCharacterInput(c: Character): SceneCharacterInput {
+  return c.imageUrl
+    ? { name: c.name, textPrompt: c.textPrompt, imageUrl: c.imageUrl }
+    : {
+        name: c.name,
+        textPrompt: c.textPrompt,
+        imageBase64: c.imageBase64,
+        imageMime: c.imageMime,
+      };
+}
+
+// 서버가 기록한 실행 상태를 시간 흐름에 맞춰 다시 판단하기 위한 현재 시각.
+// active일 때만 주기적으로 갱신한다.
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
+    return () => clearInterval(timer);
+  }, [active]);
+  return now;
+}
+
+function questionStageStatus(
+  run: AutoRun,
+  stalled: boolean
+): AutoGenCharStatus {
+  if (stalled)
+    return {
+      state: 'error',
+      message: '서버가 중간에 멈춘 것 같아요 — 전체 다시 생성을 눌러주세요',
+    };
+  if (run.status === 'running')
+    return {
+      state: 'running',
+      message: 'DQ+구도 생성 중… (백그라운드에서 계속돼요)',
+    };
+  if (run.status === 'stopped') return { state: 'error', message: '중지됨' };
+  return { state: 'error', message: run.error ?? '생성하지 못했어요' };
+}
+
+function sceneStageStatus(
+  run: AutoRun,
+  stalled: boolean,
+  image: SceneImage | undefined
+): AutoGenCharStatus {
+  if (image?.url) return { state: 'done', message: '완료 — 자동 저장됨' };
+  if (image?.error) return { state: 'error', message: image.error };
+  if (stalled)
+    return {
+      state: 'error',
+      message: '서버가 중간에 멈췄어요 — 이어서 생성을 눌러주세요',
+    };
+  if (run.status === 'running')
+    return {
+      state: 'running',
+      message: '장면 생성 중… (백그라운드에서 계속돼요)',
+    };
+  if (run.status === 'stopped') return { state: 'error', message: '중지됨' };
+  return { state: 'error', message: '만들어지지 않았어요' };
+}
+
+// 서버가 저장한 실행 기록과 장면 결과만으로 진행 목록을 만든다. 브라우저 안에
+// 진행 상태를 따로 들고 있지 않으므로 새로고침·재접속 뒤에도 같은 진행이 보인다.
+function describePipeline(
+  part: NovelPart,
+  run: AutoRun,
+  now: number
+): {
+  rows: { id: string; name: string }[];
+  status: Record<string, AutoGenCharStatus>;
+} {
+  const stalled = isAutoRunStalled(run, now);
+  const rows = [{ id: DQ_ROW_ID, name: '① DQ + 구도 프롬프트' }];
+  const status: Record<string, AutoGenCharStatus> = {};
+
+  if (run.stage === 'questions') {
+    status[DQ_ROW_ID] = questionStageStatus(run, stalled);
+    return { rows, status };
+  }
+
+  status[DQ_ROW_ID] = {
+    state: 'done',
+    message: `DQ ${part.discussionQuestions.length}개 준비됨`,
+  };
+  for (const item of buildSceneWorkItems(part.discussionQuestions)) {
+    const key = slotKey(item.dqId, item.slot);
+    rows.push({
+      id: key,
+      name: `Q${item.dqIndex + 1} · ${SLOT_LABELS[item.slot]}`,
+    });
+    status[key] = sceneStageStatus(
+      run,
+      stalled,
+      part.discussionQuestions[item.dqIndex].sceneImages?.[item.slot]
+    );
+  }
+  return { rows, status };
+}
+
 export default function WorkPanel({ novel }: Props) {
-  const { updateDQ, addHistory, promptTemplates, setPartDQs } = useStore();
+  const { promptTemplates, stopAutoRun } = useStore();
   const [selectedPartId, setSelectedPartId] = useState<string>(
     novel.parts[0]?.id ?? ''
   );
-  const [selectedDQId, setSelectedDQId] = useState<string>('');
-  const [selectedCharIds, setSelectedCharIds] = useState<string[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [generatingDQ, setGeneratingDQ] = useState(false);
-  const [error, setError] = useState('');
-  const [dqError, setDqError] = useState('');
+  const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  // 개별 장면 재생성 요청의 진행 상태. 전체 자동 생성의 진행은 서버가 저장한 실행
+  // 기록에서 읽는다.
+  const [itemStatus, setItemStatus] = useState<
+    Record<string, AutoGenCharStatus>
+  >({});
+  // 결과를 기다리는 개별 재생성 요청. 슬롯에 같은 requestId의 결과가 저장되면 끝난다.
+  const [pendingRegens, setPendingRegens] = useState<
+    Record<string, PendingRegen>
+  >({});
 
   const selectedPart = novel.parts.find((p) => p.id === selectedPartId);
-  const selectedDQ = selectedPart?.discussionQuestions.find(
-    (dq) => dq.id === selectedDQId
+  const autoRun = selectedPart?.autoRun;
+  const now = useNow(
+    autoRun?.status === 'running' || Object.keys(pendingRegens).length > 0
   );
+  const running = isAutoRunInProgress(autoRun, now);
+  const busy = starting || running;
 
-  const generateDQ = async () => {
-    if (!selectedPart) return;
-    setGeneratingDQ(true);
-    setDqError('');
+  const dqTemplateMissing = resolvePromptTemplate(
+    'dq',
+    promptTemplates.dq
+  ).missing;
+  const compositionTemplateMissing = resolvePromptTemplate(
+    'composition',
+    promptTemplates.composition
+  ).missing;
 
-    try {
-      const res = await fetch('/api/generate-dq', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          novelTitle: novel.title,
-          partContent: selectedPart.content,
-          characterNames: novel.characters.map((c) => c.name),
-          dqTemplate: promptTemplates.dq,
-          compositionTemplate: promptTemplates.composition,
-        }),
-      });
+  const pipeline =
+    selectedPart && autoRun && autoRun.status !== 'done'
+      ? describePipeline(selectedPart, autoRun, now)
+      : null;
+  // 실행 중인 동안에는 카드의 장면들도 서버 진행 상태를 따른다.
+  const slotStatus: Record<string, AutoGenCharStatus> = {
+    ...(autoRun?.status === 'running' ? pipeline?.status : undefined),
+    ...itemStatus,
+  };
+  const missingImageCount = selectedPart
+    ? buildSceneWorkItems(selectedPart.discussionQuestions).filter(
+        (item) =>
+          !selectedPart.discussionQuestions[item.dqIndex].sceneImages?.[
+            item.slot
+          ]?.url
+      ).length
+    : 0;
+  const errorMessage =
+    requestError || (autoRun?.status === 'error' ? autoRun.error : '');
 
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+  const selectPart = (partId: string) => {
+    setSelectedPartId(partId);
+    setItemStatus({});
+    setPendingRegens({});
+    setRequestError('');
+  };
 
-      await setPartDQs(novel.id, selectedPart.id, data.discussionQuestions);
-    } catch (e) {
-      setDqError(String(e));
-    } finally {
-      setGeneratingDQ(false);
+  // 개별 재생성이 끝나면 Firestore 실시간 구독을 거쳐 novel prop이 갱신된다.
+  // 기다리는 요청 중 슬롯에 같은 requestId의 결과가 저장된 것만 완료/실패로 바꾼다.
+  // 기존 그림이나 이전 실패 메시지는 다른 요청의 결과라서 완료로 보지 않는다.
+  // 제한 시간이 지나도 결과가 없으면 서버가 끊긴 것으로 보고 실패로 바꾼다.
+  useEffect(() => {
+    const resolved: Record<string, AutoGenCharStatus> = {};
+    for (const [key, pending] of Object.entries(pendingRegens)) {
+      const [dqId, slot] = key.split(':') as [string, SceneSlot];
+      const image = selectedPart?.discussionQuestions.find((d) => d.id === dqId)
+        ?.sceneImages?.[slot];
+      if (image?.requestId === pending.requestId && image.url) {
+        resolved[key] = { state: 'done', message: '완료 — 자동 저장됨' };
+      } else if (image?.requestId === pending.requestId && image.error) {
+        resolved[key] = { state: 'error', message: image.error };
+      } else if (now - pending.startedAt > SCENE_REGEN_STALE_AFTER_MS) {
+        resolved[key] = {
+          state: 'error',
+          message: '서버가 응답 없이 멈췄어요 — 다시 시도해주세요',
+        };
+      }
     }
-  };
+    const keys = Object.keys(resolved);
+    if (keys.length === 0) return;
+    setItemStatus((prev) => ({ ...prev, ...resolved }));
+    setPendingRegens((prev) => {
+      const next = { ...prev };
+      for (const key of keys) delete next[key];
+      return next;
+    });
+  }, [selectedPart, pendingRegens, now]);
 
-  const toggleChar = (id: string) => {
-    setSelectedCharIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const generateScene = async () => {
-    if (!selectedDQ) return;
-    setGenerating(true);
-    setError('');
-
+  // ── 장면 이미지 1장 개별 재생성 요청 ──
+  // 서버가 요청을 받았다는 것만 확인하고 바로 끝난다 — 실제 생성·저장은 서버가
+  // 백그라운드로 이어서 하고, 완료되면 Firestore를 거쳐 novel prop으로 들어온다
+  // (위 useEffect가 그 시점을 감지해 상태를 'done'/'error'로 바꾼다).
+  const generateSceneForSlot = async (
+    dqId: string,
+    dqIndex: number,
+    slot: SceneSlot,
+    text: string
+  ): Promise<void> => {
+    const key = slotKey(dqId, slot);
+    const requestId = crypto.randomUUID();
+    setItemStatus((prev) => ({
+      ...prev,
+      [key]: {
+        state: 'running',
+        message: '장면 생성 중… (백그라운드에서 계속돼요)',
+      },
+    }));
+    setPendingRegens((prev) => ({
+      ...prev,
+      [key]: { requestId, startedAt: Date.now() },
+    }));
     try {
-      const selectedChars = novel.characters.filter((c) =>
-        selectedCharIds.includes(c.id)
-      );
       const res = await fetch('/api/generate-scene', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          novelId: novel.id,
+          partId: selectedPartId,
+          dqId,
+          dqIndex,
+          slot,
+          requestId,
           styleRefImages: novel.styleRefImages,
           stylePrompt: novel.stylePrompt,
-          compositionPrompt: selectedDQ.compositionPrompt,
-          characters: selectedChars.map((c) => ({
-            name: c.name,
-            textPrompt: c.textPrompt,
-            imageBase64: c.imageBase64,
-            imageMime: c.imageMime,
-          })),
+          compositionPrompt: text,
+          characters: pickMentionedCharacters(text, novel.characters).map(
+            toSceneCharacterInput
+          ),
         }),
       });
-
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      updateDQ(novel.id, selectedPartId, selectedDQId, {
-        sceneImage: data.imageBase64,
-        sceneMime: data.imageMime,
-      });
-
-      addHistory({
-        novelId: novel.id,
-        novelTitle: novel.title,
-        type: 'scene',
-        label: `${selectedPart?.label} — ${selectedDQ.text.slice(0, 60)}`,
-        imageBase64: data.imageBase64,
-        imageMime: data.imageMime,
-        prompt: selectedDQ.compositionPrompt,
-      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.accepted) {
+        throw new Error(
+          data?.error ??
+            (res.status === 413
+              ? '보내는 이미지가 너무 커요 — 스타일 참고 이미지를 줄이거나 몇 장 빼주세요'
+              : `요청이 거절됐어요 (HTTP ${res.status})`)
+        );
+      }
     } catch (e) {
-      setError(String(e));
-    } finally {
-      setGenerating(false);
+      setPendingRegens((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setItemStatus((prev) => ({
+        ...prev,
+        [key]: { state: 'error', message: String(e) },
+      }));
     }
   };
 
-  const downloadImage = (base64: string, mime: string, name: string) => {
-    const ext = mime.split('/')[1] || 'png';
-    const a = document.createElement('a');
-    a.href = `data:${mime};base64,${base64}`;
-    a.download = `${name}.${ext}`;
-    a.click();
+  // ── ①DQ+구도 생성 → ③장면 이미지(DQ당 3장)를 서버가 끝까지 이어서 진행 ──
+  // 요청은 서버가 접수했다는 응답까지만 기다린다. 이후 진행은 브라우저 탭과
+  // 무관하게 서버가 계속하고, 이 화면은 저장된 실행 기록을 구독해서 보여준다.
+  const startAutoRun = async (mode: AutoRunMode) => {
+    if (!selectedPart) return;
+    setStarting(true);
+    setRequestError('');
+    setItemStatus({});
+    setPendingRegens({});
+    try {
+      const res = await fetch('/api/auto-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode,
+          novelId: novel.id,
+          partId: selectedPart.id,
+          novelTitle: novel.title,
+          partContent: selectedPart.content,
+          characters: novel.characters.map(toSceneCharacterInput),
+          dqTemplate: promptTemplates.dq,
+          compositionTemplate: promptTemplates.composition,
+          styleRefImages: novel.styleRefImages,
+          stylePrompt: novel.stylePrompt,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.accepted) {
+        throw new Error(
+          data?.error ??
+            (res.status === 413
+              ? '보내는 이미지가 너무 커요 — 스타일 참고 이미지를 줄이거나 몇 장 빼주세요'
+              : `요청이 거절됐어요 (HTTP ${res.status})`)
+        );
+      }
+    } catch (e) {
+      setRequestError(String(e));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleStop = async () => {
+    if (!selectedPart) return;
+    setStopping(true);
+    try {
+      await stopAutoRun(novel.id, selectedPart.id);
+    } catch (e) {
+      setRequestError(String(e));
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  const handleRegenerateSlot = (
+    dq: DiscussionQuestion,
+    dqIndex: number,
+    slot: SceneSlot
+  ) => {
+    if (!selectedPart || busy) return;
+    const split = splitCompositionScenes(dq.compositionPrompt);
+    const text =
+      slot === 'main'
+        ? split.main
+        : slot === 'optionA'
+          ? split.optionA
+          : split.optionB;
+    if (!text) return;
+    generateSceneForSlot(dq.id, dqIndex, slot, text);
   };
 
   return (
-    <div
-      style={{
-        maxWidth: 1000,
-        margin: '0 auto',
-        display: 'grid',
-        gridTemplateColumns: '300px 1fr',
-        gap: 24,
-      }}
-    >
-      {/* Left: selector panel */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Part selector */}
-        <div className="card" style={{ padding: 16 }}>
-          <span
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {/* Part selector */}
+      <div
+        style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}
+      >
+        {novel.parts.map((part) => (
+          <button
+            type="button"
+            key={part.id}
+            onClick={() => selectPart(part.id)}
             style={{
-              fontSize: 10,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: 'var(--ink-soft)',
-              display: 'block',
-              marginBottom: 10,
+              padding: '8px 14px',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 500,
+              background: selectedPartId === part.id ? 'var(--ink)' : 'white',
+              color:
+                selectedPartId === part.id
+                  ? 'var(--parchment)'
+                  : 'var(--ink-soft)',
+              border: '1px solid',
+              borderColor:
+                selectedPartId === part.id ? 'var(--ink)' : 'var(--border)',
+              transition: 'all 0.15s',
             }}
           >
-            Chapter / Part
-          </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {novel.parts.map((part) => (
-              <button
-                type="button"
-                key={part.id}
-                onClick={() => {
-                  setSelectedPartId(part.id);
-                  setSelectedDQId('');
-                }}
-                style={{
-                  background:
-                    selectedPartId === part.id ? 'var(--ink)' : 'transparent',
-                  color:
-                    selectedPartId === part.id
-                      ? 'var(--parchment)'
-                      : 'var(--ink)',
-                  border: '1px solid',
-                  borderColor:
-                    selectedPartId === part.id ? 'var(--ink)' : 'var(--border)',
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  fontSize: 13,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {part.label}
-              </button>
-            ))}
-          </div>
-        </div>
+            {part.label}
+          </button>
+        ))}
+      </div>
 
-        {/* DQ selector */}
-        {selectedPart && (
-          <div className="card" style={{ padding: 16 }}>
-            <span
+      {!selectedPart ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: 200,
+            opacity: 0.4,
+          }}
+        >
+          <p className="serif" style={{ fontSize: 16, fontWeight: 300 }}>
+            챕터를 선택하세요
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Run pipeline */}
+          <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+            <div
               style={{
                 fontSize: 10,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 color: 'var(--ink-soft)',
-                display: 'block',
                 marginBottom: 10,
               }}
             >
-              Discussion Question
-            </span>
-
-            {selectedPart.content && (
+              자동 생성 — DQ → 구도 프롬프트 → 장면 이미지(DQ당 3장)
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn-gold"
-                onClick={generateDQ}
-                disabled={generatingDQ}
+                onClick={() => startAutoRun('full')}
+                disabled={busy || !selectedPart.content}
                 style={{
-                  width: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
                   gap: 6,
                   fontSize: 12,
-                  padding: '8px 12px',
-                  marginBottom: 10,
+                  padding: '9px 18px',
                 }}
               >
-                {generatingDQ ? (
-                  <>
-                    <RefreshCw
-                      size={12}
-                      style={{ animation: 'spin 1s linear infinite' }}
-                    />
-                    생성 중…
-                  </>
+                {busy ? (
+                  <RefreshCw
+                    size={12}
+                    style={{ animation: 'spin 1s linear infinite' }}
+                  />
                 ) : (
-                  <>
-                    <Sparkles size={12} />
-                    {selectedPart.discussionQuestions.length > 0
-                      ? 'DQ+구도 다시 생성'
-                      : 'DQ+구도 자동 생성'}
-                  </>
+                  <Sparkles size={12} />
                 )}
+                {busy
+                  ? '생성 중…'
+                  : selectedPart.discussionQuestions.length > 0
+                    ? '전체 다시 생성'
+                    : '전체 자동 생성'}
               </button>
+              {!busy && missingImageCount > 0 && (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => startAutoRun('images-only')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    padding: '9px 18px',
+                  }}
+                >
+                  <Sparkles size={12} /> 빠진 이미지 이어서 생성 (
+                  {missingImageCount}장)
+                </button>
+              )}
+              {running && (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={handleStop}
+                  disabled={stopping}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    padding: '9px 18px',
+                  }}
+                >
+                  <Square size={12} /> 중지
+                </button>
+              )}
+            </div>
+            {running && (
+              <p
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink-soft)',
+                  margin: '10px 0 0',
+                }}
+              >
+                서버에서 진행 중이에요. 이 화면을 닫거나 새로고침해도 계속돼요.
+                스타일 프롬프트와 참고 이미지는 시작할 때의 내용으로 진행돼요.
+              </p>
             )}
-            {dqError && (
+            <div style={{ marginTop: dqTemplateMissing.length > 0 ? 10 : 0 }}>
+              <TemplateFallbackNotice
+                templateName="DQ"
+                missing={dqTemplateMissing}
+              />
+              <TemplateFallbackNotice
+                templateName="구도 프롬프트"
+                missing={compositionTemplateMissing}
+              />
+            </div>
+            {!selectedPart.content && (
+              <p
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink-soft)',
+                  opacity: 0.6,
+                  margin: '8px 0 0',
+                }}
+              >
+                이 챕터에 원문 내용이 없어서 자동 생성을 할 수 없어요.
+              </p>
+            )}
+            {errorMessage && (
               <div
                 style={{
-                  marginBottom: 10,
+                  marginTop: 10,
                   padding: '8px 12px',
                   background: '#fff5f5',
                   border: '1px solid #fcc',
@@ -244,302 +555,250 @@ export default function WorkPanel({ novel }: Props) {
                   color: 'var(--crimson)',
                 }}
               >
-                {dqError}
+                {errorMessage}
               </div>
             )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {selectedPart.discussionQuestions.map((dq, i) => (
-                <button
-                  type="button"
-                  key={dq.id}
-                  onClick={() => setSelectedDQId(dq.id)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    border: '1px solid',
-                    borderColor:
-                      selectedDQId === dq.id ? 'var(--gold)' : 'var(--border)',
-                    background:
-                      selectedDQId === dq.id
-                        ? 'rgba(201,168,76,0.08)'
-                        : 'white',
-                    transition: 'all 0.15s',
-                    position: 'relative',
-                  }}
-                >
-                  {dq.sceneImage && (
-                    <div style={{ position: 'absolute', top: 6, right: 6 }}>
-                      <Image size={10} style={{ color: 'var(--sage)' }} />
-                    </div>
-                  )}
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--gold)',
-                      fontWeight: 600,
-                      marginRight: 6,
-                    }}
-                  >
-                    Q{i + 1}
-                  </span>
-                  <span style={{ fontSize: 12, lineHeight: 1.4 }}>
-                    {dq.text}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Character selector */}
-        {novel.characters.length > 0 && selectedDQ && (
-          <div className="card" style={{ padding: 16 }}>
-            <span
-              style={{
-                fontSize: 10,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: 'var(--ink-soft)',
-                display: 'block',
-                marginBottom: 10,
-              }}
-            >
-              Characters in Scene
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {novel.characters.map((char) => (
-                <CharacterRow
-                  key={char.id}
-                  char={char}
-                  selected={selectedCharIds.includes(char.id)}
-                  onToggle={() => toggleChar(char.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Right: scene area */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {!selectedDQ ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: 300,
-              opacity: 0.4,
-            }}
-          >
-            <p className="serif" style={{ fontSize: 16, fontWeight: 300 }}>
-              Select a discussion question to begin
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Composition prompt preview */}
-            <div className="card" style={{ padding: 20 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: 10,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
-                    color: 'var(--ink-soft)',
-                  }}
-                >
-                  Scene Composition Prompt
-                </span>
-              </div>
-              <p
-                style={{
-                  fontSize: 12,
-                  lineHeight: 1.7,
-                  color: 'var(--ink-soft)',
-                  margin: 0,
-                  fontStyle: 'italic',
-                }}
-              >
-                {selectedDQ.compositionPrompt}
-              </p>
-            </div>
-
-            {error && (
-              <div
-                style={{
-                  background: '#fff5f5',
-                  border: '1px solid #fcc',
-                  padding: '10px 14px',
-                  fontSize: 13,
-                  color: 'var(--crimson)',
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            {/* Generate button */}
-            <button
-              type="button"
-              className="btn-gold"
-              onClick={generateScene}
-              disabled={generating}
-              style={{
-                alignSelf: 'flex-start',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '11px 22px',
-              }}
-            >
-              {generating ? (
-                <>
-                  <RefreshCw
-                    size={14}
-                    style={{ animation: 'spin 1s linear infinite' }}
-                  />{' '}
-                  Generating…
-                </>
-              ) : (
-                <>
-                  <Image size={14} />{' '}
-                  {selectedDQ.sceneImage
-                    ? 'Regenerate Scene'
-                    : 'Generate Scene'}
-                </>
-              )}
-            </button>
-
-            {/* Loading placeholder */}
-            {generating && (
-              <div
-                className="loading-shimmer"
-                style={{ width: '100%', aspectRatio: '16/9' }}
+            {pipeline && (
+              <AutoGenStatusList
+                chars={pipeline.rows}
+                status={pipeline.status}
               />
             )}
+          </div>
 
-            {/* Generated image */}
-            {selectedDQ.sceneImage && !generating && (
-              <div className="card fade-up" style={{ overflow: 'hidden' }}>
-                {/* biome-ignore lint/performance/noImgElement: dynamic base64 data URI, not eligible for next/image optimization */}
-                <img
-                  src={`data:${selectedDQ.sceneMime || 'image/png'};base64,${selectedDQ.sceneImage}`}
-                  alt="Generated scene"
-                  style={{ width: '100%', display: 'block' }}
+          <StyleReferenceCallout key={novel.id} novel={novel} />
+
+          {/* Results */}
+          {selectedPart.discussionQuestions.length === 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 160,
+                opacity: 0.4,
+              }}
+            >
+              <p className="serif" style={{ fontSize: 15, fontWeight: 300 }}>
+                아직 생성된 DQ가 없어요
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {selectedPart.discussionQuestions.map((dq, i) => (
+                <DQCard
+                  key={dq.id}
+                  index={i}
+                  dq={dq}
+                  slotStatus={slotStatus}
+                  regenerateDisabled={busy}
+                  onRegenerate={(slot) => handleRegenerateSlot(dq, i, slot)}
                 />
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    borderTop: '1px solid var(--border)',
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={() => {
-                      if (!selectedDQ.sceneImage) return;
-                      downloadImage(
-                        selectedDQ.sceneImage,
-                        selectedDQ.sceneMime || 'image/png',
-                        `scene-${selectedPart?.label}`
-                      );
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 12,
-                    }}
-                  >
-                    <Download size={12} /> Download
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
-function CharacterRow({
-  char,
-  selected,
-  onToggle,
+function DQCard({
+  index,
+  dq,
+  slotStatus,
+  regenerateDisabled,
+  onRegenerate,
 }: {
-  char: Character;
-  selected: boolean;
-  onToggle: () => void;
+  index: number;
+  dq: DiscussionQuestion;
+  slotStatus: Record<string, AutoGenCharStatus>;
+  regenerateDisabled: boolean;
+  onRegenerate: (slot: SceneSlot) => void;
 }) {
+  const split = splitCompositionScenes(dq.compositionPrompt);
+  const slotTexts: Record<SceneSlot, string> = {
+    main: split.main,
+    optionA: split.optionA,
+    optionB: split.optionB,
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      style={{
-        width: '100%',
-        textAlign: 'left',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '8px 10px',
-        cursor: 'pointer',
-        border: '1px solid',
-        borderColor: selected ? 'var(--gold)' : 'var(--border)',
-        background: selected ? 'rgba(201,168,76,0.08)' : 'white',
-        transition: 'all 0.15s',
-      }}
-    >
-      {char.imageBase64 ? (
-        // biome-ignore lint/performance/noImgElement: dynamic base64 data URI, not eligible for next/image optimization
-        <img
-          src={`data:${char.imageMime || 'image/png'};base64,${char.imageBase64}`}
-          alt={char.name}
+    <div className="card" style={{ padding: 18 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <span
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            objectFit: 'cover',
-            border: '1px solid var(--border)',
-            flexShrink: 0,
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            background: 'var(--parchment)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            fontSize: 11,
+            color: 'var(--gold)',
+            fontWeight: 600,
             flexShrink: 0,
           }}
         >
-          <User size={14} style={{ color: 'var(--ink-soft)' }} />
-        </div>
-      )}
-      <span style={{ fontSize: 13, flex: 1 }}>{char.name}</span>
-      {selected && (
-        <Check size={12} style={{ color: 'var(--gold)', flexShrink: 0 }} />
-      )}
-    </button>
+          Q{index + 1}
+        </span>
+        <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{dq.text}</p>
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {(['main', 'optionA', 'optionB'] as SceneSlot[]).map((slot) => {
+          const text = slotTexts[slot];
+          if (!text) return null;
+          return (
+            <SceneSlotCard
+              key={slot}
+              slot={slot}
+              text={text}
+              image={dq.sceneImages?.[slot]}
+              status={slotStatus[slotKey(dq.id, slot)]}
+              regenerateDisabled={regenerateDisabled}
+              onRegenerate={() => onRegenerate(slot)}
+            />
+          );
+        })}
+      </div>
+    </div>
   );
 }
+
+function SceneSlotCard({
+  slot,
+  image,
+  status,
+  regenerateDisabled,
+  onRegenerate,
+}: {
+  slot: SceneSlot;
+  text: string;
+  image?: SceneImage;
+  status?: AutoGenCharStatus;
+  regenerateDisabled: boolean;
+  onRegenerate: () => void;
+}) {
+  const running = status?.state === 'running';
+  const imgSrc = image?.url;
+  const failed = status?.state === 'error' || Boolean(image?.error);
+  // 재생성이 실패해도 기존 그림은 남아 있으므로, 그림 유무와 상관없이 실패 이유를 보여준다.
+  const failureMessage =
+    status?.state === 'error' ? status.message : image?.error;
+  const disabledStyle = regenerateDisabled
+    ? { opacity: 0.5, cursor: 'not-allowed' }
+    : undefined;
+
+  return (
+    <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: '0.07em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-soft)',
+          marginBottom: 6,
+        }}
+      >
+        {SLOT_LABELS[slot]}
+      </div>
+      {running ? (
+        <div
+          className="loading-shimmer"
+          style={{ width: '100%', aspectRatio: '16/9' }}
+        />
+      ) : imgSrc ? (
+        <div style={{ position: 'relative' }}>
+          {/* biome-ignore lint/performance/noImgElement: dynamic Blob URL, not eligible for next/image optimization */}
+          <img
+            src={imgSrc}
+            alt={SLOT_LABELS[slot]}
+            style={{
+              width: '100%',
+              aspectRatio: '16/9',
+              objectFit: 'cover',
+              display: 'block',
+              border: '1px solid var(--border)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 6,
+              right: 6,
+              display: 'flex',
+              gap: 4,
+            }}
+          >
+            {/* Blob 주소는 다른 도메인이라 download 속성이 안 먹을 수 있어 새
+                탭으로 열어서 직접 저장하게 한다. */}
+            <a
+              href={imgSrc}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...iconBtnStyle, textDecoration: 'none' }}
+              aria-label="원본 이미지 새 탭에서 열기"
+            >
+              <Download size={11} />
+            </a>
+            <button
+              type="button"
+              onClick={onRegenerate}
+              disabled={regenerateDisabled}
+              style={{ ...iconBtnStyle, ...disabledStyle }}
+              aria-label="재생성"
+            >
+              <RefreshCw size={11} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onRegenerate}
+          disabled={regenerateDisabled}
+          style={{
+            width: '100%',
+            aspectRatio: '16/9',
+            border: '1px dashed var(--border)',
+            background: failed ? '#fff5f5' : 'var(--cream)',
+            color: failed ? 'var(--crimson)' : 'var(--ink-soft)',
+            fontSize: 11,
+            cursor: 'pointer',
+            ...disabledStyle,
+          }}
+        >
+          {failed ? '실패 — 재시도' : '이미지 생성'}
+        </button>
+      )}
+      {!running && failureMessage && (
+        <p
+          title={failureMessage}
+          style={{
+            margin: '6px 0 0',
+            fontSize: 10,
+            lineHeight: 1.4,
+            color: 'var(--crimson)',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'break-word',
+          }}
+        >
+          {failureMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const iconBtnStyle = {
+  width: 22,
+  height: 22,
+  borderRadius: '50%',
+  background: 'rgba(26,20,16,0.7)',
+  border: 'none',
+  color: 'white',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+} as const;

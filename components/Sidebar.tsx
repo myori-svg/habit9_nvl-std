@@ -1,9 +1,14 @@
 'use client';
-import { BookOpen, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 
-export default function Sidebar() {
+interface Props {
+  open: boolean;
+  onNavigate: () => void;
+}
+
+export default function Sidebar({ open, onNavigate }: Props) {
   const { novels, activeNovelId, deleteNovel, setActiveNovel, addNovel } =
     useStore();
   const [showAdd, setShowAdd] = useState(false);
@@ -26,14 +31,13 @@ export default function Sidebar() {
 
   return (
     <aside
+      className={`sidebar${open ? ' open' : ''}`}
       style={{
-        width: 260,
         borderRight: '1px solid var(--border)',
         background: 'var(--parchment)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        flexShrink: 0,
       }}
     >
       <div
@@ -41,31 +45,54 @@ export default function Sidebar() {
           padding: '18px 16px 14px',
           borderBottom: '1px solid var(--border)',
           background: 'var(--ink)',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
         }}
       >
-        <h1
-          className="serif"
+        <div>
+          <h1
+            className="serif"
+            style={{
+              color: 'var(--gold)',
+              fontSize: 20,
+              fontWeight: 300,
+              margin: 0,
+              letterSpacing: '0.06em',
+            }}
+          >
+            Novel Studio
+          </h1>
+          <p
+            style={{
+              color: 'var(--parchment)',
+              fontSize: 10,
+              margin: '3px 0 0',
+              opacity: 0.5,
+              letterSpacing: '0.1em',
+            }}
+          >
+            AI SCENE GENERATOR
+          </p>
+        </div>
+        <button
+          type="button"
+          className="sidebar-close-btn"
+          onClick={onNavigate}
+          aria-label="사이드바 닫기"
           style={{
-            color: 'var(--gold)',
-            fontSize: 20,
-            fontWeight: 300,
-            margin: 0,
-            letterSpacing: '0.06em',
-          }}
-        >
-          Novel Studio
-        </h1>
-        <p
-          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
             color: 'var(--parchment)',
-            fontSize: 10,
-            margin: '3px 0 0',
-            opacity: 0.5,
-            letterSpacing: '0.1em',
+            opacity: 0.7,
+            padding: 2,
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          AI SCENE GENERATOR
-        </p>
+          <X size={18} />
+        </button>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 10 }}>
@@ -130,9 +157,15 @@ export default function Sidebar() {
             key={novel.id}
             role="button"
             tabIndex={0}
-            onClick={() => setActiveNovel(novel.id)}
+            onClick={() => {
+              setActiveNovel(novel.id);
+              onNavigate();
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') setActiveNovel(novel.id);
+              if (e.key === 'Enter' || e.key === ' ') {
+                setActiveNovel(novel.id);
+                onNavigate();
+              }
             }}
             style={{
               display: 'flex',

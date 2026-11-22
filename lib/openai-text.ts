@@ -7,7 +7,28 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
 export const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL || 'gpt-6-luna';
 
-export type TextReferenceImage = { base64: string; mime: string };
+// 모델에 함께 보여줄 이미지·PDF. PDF는 파일 이름이 필요하다.
+export interface OpenAIInputFile {
+  base64: string;
+  mime: string;
+  name?: string;
+}
+
+type ContentPart =
+  | { type: 'input_text'; text: string }
+  | { type: 'input_image'; image_url: string }
+  | { type: 'input_file'; filename: string; file_data: string };
+
+function toContentPart(file: OpenAIInputFile, index: number): ContentPart {
+  const dataUrl = `data:${file.mime};base64,${file.base64}`;
+  return file.mime === 'application/pdf'
+    ? {
+        type: 'input_file',
+        filename: file.name ?? `file-${index}.pdf`,
+        file_data: dataUrl,
+      }
+    : { type: 'input_image', image_url: dataUrl };
+}
 
 interface ResponsesOutput {
   status?: string;
@@ -18,11 +39,10 @@ interface ResponsesOutput {
   }[];
 }
 
-// 참조 이미지(있으면)와 프롬프트로 자유 형식 텍스트를 받는다. JSON이 필요한
-// 곳은 프롬프트에서 직접 요청하고 호출부가 파싱한다.
-export async function generateText(
+async function requestText(
   prompt: string,
-  referenceImages: TextReferenceImage[] = []
+  files: OpenAIInputFile[],
+  format?: { name: string; schema: object }
 ): Promise<string> {
   const res = await fetch(OPENAI_RESPONSES_URL, {
     method: 'POST',
@@ -36,14 +56,21 @@ export async function generateText(
         {
           role: 'user',
           content: [
-            ...referenceImages.map((img) => ({
-              type: 'input_image',
-              image_url: `data:${img.mime};base64,${img.base64}`,
-            })),
+            ...files.map(toContentPart),
             { type: 'input_text', text: prompt },
           ],
         },
       ],
+      ...(format && {
+        text: {
+          format: {
+            type: 'json_schema',
+            name: format.name,
+            strict: true,
+            schema: format.schema,
+          },
+        },
+      }),
     }),
   });
   if (!res.ok) throw new Error(await readOpenAIError(res));
@@ -67,4 +94,29 @@ export async function generateText(
     .join('');
   if (!text) throw new Error('OpenAI가 텍스트를 반환하지 않았습니다');
   return text;
+}
+
+// 참조 이미지(있으면)와 프롬프트로 자유 형식 텍스트를 받는다. JSON이 필요한
+// 곳은 프롬프트에서 직접 요청하고 호출부가 파싱한다.
+export function generateText(
+  prompt: string,
+  referenceImages: OpenAIInputFile[] = []
+): Promise<string> {
+  return requestText(prompt, referenceImages);
+}
+
+// 응답을 JSON 스키마에 맞춰 강제한다. schema는 strict 모드 규칙(모든 객체에
+// additionalProperties: false, 모든 속성이 required)을 지켜야 한다.
+export function generateStructuredText({
+  prompt,
+  files = [],
+  schemaName,
+  schema,
+}: {
+  prompt: string;
+  files?: OpenAIInputFile[];
+  schemaName: string;
+  schema: object;
+}): Promise<string> {
+  return requestText(prompt, files, { name: schemaName, schema });
 }

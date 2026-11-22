@@ -33,11 +33,12 @@
 |[MM-17](active/MM-17.md)|SaveResultBox useStore 패턴 수정|Manual Mode|미구현|
 |[MM-18](active/MM-18.md)|프롬프트 인라인 편집 UI|Manual Mode|미구현|
 |[MM-08](active/MM-08.md)|파이프라인 재설계|Manual Mode|미구현|
-|[SA-02](active/SA-02.md)|이미지 Firebase 저장 함수|저장·아카이브|진행 중|
-|[SA-03](active/SA-03.md)|이미지 업로드 UI|저장·아카이브|미구현|
-|[CH-06](active/CH-06.md)|캐릭터 이미지 생성 파트 신설|캐릭터 관리|미구현|
-|[CH-08](active/CH-08.md)|캐릭터 이미지 업로드|캐릭터 관리|미구현|
-|[MM-07](active/MM-07.md)|결과 저장 (이미지)|Manual Mode|미구현|
+|[MM-21](active/MM-21.md)|출력 형식을 코드가 소유하도록 분리 (DQ·구도)|Manual/Auto Mode|진행 중 (1~4단계 완료)|
+|[SA-05](active/SA-05.md)|캐릭터 이미지 저장소를 Vercel Blob으로 교체|저장·아카이브|진행 중 (실사용 확인 대기)|
+|[AM-04](active/AM-04.md)|자동 모드 스타일 참고 이미지 관리 UI|Auto Mode|진행 중 (UI 완료, 영구 저장 남음)|
+|[AM-05](active/AM-05.md)|자동 모드 장면 이미지 백그라운드 생성 + 영구 저장|Auto Mode|진행 중 (구현 완료, 실사용 확인 대기)|
+|[AM-06](active/AM-06.md)|자동 모드 전체 파이프라인 서버 백그라운드 실행|Auto Mode|진행 중 (구현·로직 검증 완료, 실사용 확인 대기)|
+|[GR-02](active/GR-02.md)|Grammar 탭 — 골든벨 퀴즈 백그라운드 생성|Grammar Studio|진행 중 (구현·로직 검증 완료, 실사용 확인 대기)|
 
 ## 🟢 나중에 (backlog)
 
@@ -51,10 +52,8 @@
 |[CH-05](backlog/CH-05.md)|캐릭터 프롬프트 subtab 재배치|캐릭터 관리|
 |[SA-04](backlog/SA-04.md)|이미지 export|저장·아카이브|
 |[AR-01](backlog/AR-01.md)|Archive 탭 구현|저장·아카이브|
-|[UX-01](backlog/UX-01.md)|사이드바 숨기기|공통 UX|
 |[UX-02](backlog/UX-02.md)|새로고침 경고 모달|공통 UX|
 |[UX-04](backlog/UX-04.md)|API 키 저장 보안|공통 UX|
-|[GR-01](backlog/GR-01.md)|Grammar Studio 기획|Grammar Studio|
 |[PP-01](backlog/PP-01.md)|PPT 콘텐츠 생성|PPT Generator|
 |[PP-02](backlog/PP-02.md)|PPT 조립 (PPTX Skill API)|PPT Generator|
 |[PP-03](backlog/PP-03.md)|PPT 마무리 편집|PPT Generator|
@@ -64,14 +63,23 @@
 |티켓|제목|카테고리|
 |-|-|-|
 |[MM-16](done/MM-16.md)|프롬프트 파일 분리|Manual Mode|
+|[MM-20](done/MM-20.md)|DQ 프롬프트 챕터 선택 미반영 버그 수정|Manual Mode|
+|[AI-01](done/AI-01.md)|Gemini SDK 마이그레이션 (전체 API 호출 장애 수정)|AI 연동|
+|[UX-01](done/UX-01.md)|사이드바 숨기기 (모바일 반응형)|공통 UX|
+|[AM-01](done/AM-01.md)|Auto Mode 파이프라인 (①DQ→②구도→④장면 이미지)|Auto Mode|
+|[AM-02](done/AM-02.md)|캐릭터 이미지 자동 생성|Auto Mode|
+|[AM-03](done/AM-03.md)|장면 이미지 자동 생성|Auto Mode|
+|[SA-02](done/SA-02.md)|이미지 Firebase 저장 함수|저장·아카이브|
+|[SA-03](done/SA-03.md)|이미지 업로드 UI|저장·아카이브|
+|[CH-06](done/CH-06.md)|캐릭터 이미지 생성 파트 신설|캐릭터 관리|
+|[CH-08](done/CH-08.md)|캐릭터 이미지 업로드|캐릭터 관리|
+|[MM-07](done/MM-07.md)|결과 저장 (이미지)|Manual Mode|
+|[GR-01](done/GR-01.md)|Grammar Studio 기획 (GR-02로 대체)|Grammar Studio|
 
 ## ⏸ 보류 (hold)
 
 |티켓|제목|카테고리|보류 이유|
 |-|-|-|-|
-|[AM-01](hold/AM-01.md)|Auto Mode 전체 파이프라인|Auto Mode|Gemini API 결제 후 재개|
-|[AM-02](hold/AM-02.md)|캐릭터 이미지 자동 생성|Auto Mode|AM-01 완료 후|
-|[AM-03](hold/AM-03.md)|장면 이미지 자동 생성|Auto Mode|AM-01 완료 후|
 |[UX-03](hold/UX-03.md)|사용자 인증|공통 UX|현재 공유 DB 단일 접근 구조|
 |[UX-05](hold/UX-05.md)|Google Drive 연동|공통 UX|-|
 |[MM-19](hold/MM-19.md)|프롬프트 버전 관리|Manual Mode|저장 정책 결정 후|
