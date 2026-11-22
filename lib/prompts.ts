@@ -5,6 +5,20 @@ export function getStyleRef(stylePrompt?: string): string {
   return stylePrompt || DEFAULT_STYLE;
 }
 
+// 캐릭터 이미지 생성 프롬프트. 소설의 화풍이 비어 있어도 기본 수채화 화풍을 앞에
+// 붙여, 캐릭터 그림이 장면 그림(lib/scene-generation.ts)과 같은 화풍으로 나온다.
+// textPrompt에 화풍 문구가 없으면 실사풍으로 나오기 때문에 생략하지 않는다.
+export function buildCharacterImagePrompt(
+  stylePrompt: string | undefined,
+  textPrompt: string,
+  hasStyleRefImages: boolean
+): string {
+  const styleNote = hasStyleRefImages
+    ? ' (match the style of the reference images provided)'
+    : '';
+  return `Style: ${getStyleRef(stylePrompt)}${styleNote}\n\n${textPrompt}`;
+}
+
 export function parseChapters(
   summary: string
 ): { label: string; content: string }[] {

@@ -4,6 +4,7 @@ import {
   hasOpenAIKey,
   type ReferenceImage,
 } from '@/lib/openai-image';
+import { buildCharacterImagePrompt } from '@/lib/prompts';
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +22,11 @@ export async function POST(req: NextRequest) {
 
     const refImages: ReferenceImage[] = styleRefImages ?? [];
 
-    const prompt = `${stylePrompt ? `Style: ${stylePrompt}${refImages.length > 0 ? ' (match the style of the reference images provided)' : ''}\n\n` : ''}${textPrompt}`;
+    const prompt = buildCharacterImagePrompt(
+      stylePrompt,
+      textPrompt,
+      refImages.length > 0
+    );
 
     return NextResponse.json(await generateImage(prompt, refImages));
   } catch (e) {
